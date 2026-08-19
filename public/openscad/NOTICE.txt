@@ -1,0 +1,16 @@
+OpenSCAD WebAssembly build — vendored, UNMODIFIED binaries
+===========================================================
+
+Files: openscad.js, openscad.wasm
+Source archive: OpenSCAD-2026.01.02.wasm30346-WebAssembly-web.zip
+Downloaded from: https://files.openscad.org/snapshots/OpenSCAD-2026.01.02.wasm30346-WebAssembly-web.zip
+SHA-256 verified against the published .sha256 file on 2026-08-19.
+
+OpenSCAD is free software licensed under the GNU General Public License
+version 2 or later (GPL-2.0-or-later). Source code:
+  https://github.com/openscad/openscad
+  https://github.com/openscad/openscad-wasm (build toolchain)
+
+These binaries are distributed unmodified and are loaded at runtime by a
+Web Worker over HTTP; no application code is derived from or linked
+against them at build time.
