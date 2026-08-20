@@ -36,6 +36,16 @@ describe("lintScad", () => {
     expect(lintScad('echo("call text( for fun");\ncube(1);')).toEqual([]);
   });
 
+  it("does not treat // inside a string as a comment", () => {
+    expect(lintScad('msg = "please use <caution> // fragile";\ncube(1);')).toEqual([]);
+  });
+
+  it("still flags forbidden calls after a string containing //", () => {
+    const errors = lintScad('url = "https://x"; text("hi");');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("text()");
+  });
+
   it("does not flag identifiers containing forbidden names", () => {
     expect(lintScad("context(1);\nmy_text_size = 4;\nreused = 2;")).toEqual([]);
   });

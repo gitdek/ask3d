@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Bounds, Center, ContactShadows, Grid, OrbitControls } from "@react-three/drei";
 import StlMesh, { type ModelDimensions } from "./stl-mesh";
@@ -11,6 +12,11 @@ interface StlCanvasProps {
 
 // 1 three.js unit = 1 mm. Bed grid is 220x220mm, 10mm cells, 50mm sections.
 export default function StlCanvas({ stl, onDimensions }: StlCanvasProps) {
+  // Bounds fits/clips only on mount and Center measures only on mount —
+  // remount the subtree per new buffer so the camera reframes each model.
+  const revisionRef = useRef(0);
+  const revision = useMemo(() => ++revisionRef.current, [stl]);
+
   return (
     <Canvas
       frameloop="demand"
@@ -29,7 +35,7 @@ export default function StlCanvas({ stl, onDimensions }: StlCanvasProps) {
         fadeDistance={600}
       />
       {stl && (
-        <Bounds fit clip observe margin={1.4}>
+        <Bounds key={revision} fit clip observe margin={1.4}>
           <Center top>
             <StlMesh buffer={stl} onDimensions={onDimensions} />
           </Center>

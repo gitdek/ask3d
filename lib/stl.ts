@@ -3,8 +3,8 @@ export function slugify(text: string, fallback = "model"): string {
   const slug = text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
+    .slice(0, 48)
+    .replace(/^-+|-+$/g, "");
   return slug || fallback;
 }
 

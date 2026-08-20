@@ -27,5 +27,10 @@ export interface CompileFailure {
   source: string;
   errors: ScadError[];
   stderr: string[];
-  kind: "compile" | "timeout";
+  /**
+   * "compile": the code is at fault — eligible for LLM auto-repair.
+   * "timeout": the model is too heavy — surface, don't repair.
+   * "environment": the compiler itself failed to load/start — surface, don't repair.
+   */
+  kind: "compile" | "timeout" | "environment";
 }

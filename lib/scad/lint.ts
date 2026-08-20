@@ -3,12 +3,14 @@ import type { ScadError } from "./types";
 /**
  * Blank out comments and string literals while preserving line structure,
  * so forbidden-construct checks don't fire on `// text() is forbidden`.
+ * One combined pass: whichever token opens first wins, so `//` inside a
+ * string is string content and quotes inside a comment are comment content.
  */
 function blankNonCode(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
-    .replace(/\/\/[^\n]*/g, (m) => " ".repeat(m.length))
-    .replace(/"(?:[^"\\\n]|\\.)*"/g, (m) => " ".repeat(m.length));
+  return source.replace(
+    /"(?:[^"\\\n]|\\.)*"|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,
+    (m) => m.replace(/[^\n]/g, " "),
+  );
 }
 
 const FORBIDDEN: { re: RegExp; what: string; why: string }[] = [

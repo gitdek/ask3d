@@ -1,28 +1,74 @@
-const FENCE_RE = /```([^\n`]*)\n([\s\S]*?)```/g;
 const SCAD_TAGS = new Set(["openscad", "scad"]);
+
+// Untagged fences are only trusted when the content plausibly is OpenSCAD —
+// otherwise a fenced list of slicer settings would be sent to the compiler.
+const SCAD_HINT =
+  /\b(module|cube|cylinder|sphere|polygon|polyhedron|difference|union|intersection|translate|rotate|mirror|scale|linear_extrude|rotate_extrude|circle|square|hull|minkowski|offset)\s*\(|\$f[nas]\s*=/;
+
+interface FencedBlock {
+  lang: string;
+  code: string;
+}
+
+/**
+ * Line-anchored CommonMark-style fence scan: an opener is a line starting
+ * with 3+ backticks (plus an info string); a closer is a backtick-only line
+ * with at least as many ticks. Mid-line ``` in prose is ignored, and a
+ * ````-wrapped quotation of a ```openscad block pairs correctly. Returns
+ * null when a fence is still open at end of input (truncated output).
+ */
+function scanFences(markdown: string): FencedBlock[] | null {
+  const blocks: FencedBlock[] = [];
+  let open: { ticks: number; lang: string; body: string[] } | null = null;
+  for (const line of markdown.split("\n")) {
+    if (open) {
+      const closer = line.match(/^(`{3,})\s*$/);
+      if (closer && closer[1].length >= open.ticks) {
+        blocks.push({ lang: open.lang, code: open.body.join("\n") });
+        open = null;
+      } else {
+        open.body.push(line);
+      }
+    } else {
+      const opener = line.match(/^(`{3,})([^`]*)$/);
+      if (opener) {
+        open = { ticks: opener[1].length, lang: opener[2].trim().toLowerCase(), body: [] };
+      }
+    }
+  }
+  return open ? null : blocks;
+}
 
 /**
  * Extract the last complete OpenSCAD code block from a markdown message.
  *
- * Preference order: last ```openscad / ```scad fence, then last bare ```
- * fence (the system prompt mandates the tag, so bare is a fallback for
- * models that drop it). Returns null when no fence exists or the message
- * ends in an unclosed fence (malformed / truncated output must not reach
- * the compiler).
+ * Preference order: last ```openscad / ```scad fence, then the last bare
+ * fence whose content looks like OpenSCAD (the system prompt mandates the
+ * tag, so bare is a fallback for models that drop it). Returns null when no
+ * usable fence exists or the message ends in an unclosed fence (malformed /
+ * truncated output must not reach the compiler).
  */
 export function extractLastScadBlock(markdown: string): string | null {
-  if ((markdown.match(/```/g) ?? []).length % 2 === 1) return null;
-
-  const blocks: { lang: string; code: string }[] = [];
-  FENCE_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = FENCE_RE.exec(markdown)) !== null) {
-    blocks.push({ lang: m[1].trim().toLowerCase(), code: m[2] });
-  }
-  if (blocks.length === 0) return null;
+  const blocks = scanFences(markdown);
+  if (blocks === null) return null;
 
   const tagged = blocks.filter((b) => SCAD_TAGS.has(b.lang));
-  const chosen = tagged.length > 0 ? tagged[tagged.length - 1] : blocks[blocks.length - 1];
-  const code = chosen.code.trim();
-  return code.length > 0 ? code : null;
+  if (tagged.length > 0) {
+    const code = tagged[tagged.length - 1].code.trim();
+    return code.length > 0 ? code : null;
+  }
+
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const block = blocks[i];
+    if (block.lang !== "") continue;
+    if (block.code.includes("```")) {
+      // A quotation wrapper (e.g. ````) around an inner fenced block.
+      const nested = extractLastScadBlock(block.code);
+      if (nested) return nested;
+      continue;
+    }
+    const code = block.code.trim();
+    if (code.length > 0 && SCAD_HINT.test(code)) return code;
+  }
+  return null;
 }

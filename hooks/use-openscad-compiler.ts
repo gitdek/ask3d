@@ -54,7 +54,9 @@ export function useOpenscadCompiler() {
             source,
             errors: parseScadErrors(event.data.stderr, event.data.exitCode),
             stderr: event.data.stderr,
-            kind: "compile",
+            // The worker posts exitCode null only when the compiler itself
+            // failed to start (wasm fetch/instantiation) — not a code fault.
+            kind: event.data.exitCode === null ? "environment" : "compile",
           });
           setStatus("error");
         }
@@ -67,7 +69,7 @@ export function useOpenscadCompiler() {
           source,
           errors: [{ message: event.message || "The compiler worker failed to load" }],
           stderr: [],
-          kind: "compile",
+          kind: "environment",
         });
         setStatus("error");
       };
@@ -92,6 +94,9 @@ export function useOpenscadCompiler() {
   const cancel = useCallback(() => {
     jobIdRef.current++;
     teardown();
+    // Clear any committed failure so a superseded compile can't fire a
+    // stale auto-repair after the user has already moved on.
+    setFailure(null);
     setStatus("idle");
   }, [teardown]);
 

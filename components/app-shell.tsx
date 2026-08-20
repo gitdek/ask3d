@@ -26,6 +26,10 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   const [repairAttempt, setRepairAttempt] = useState(0);
   const repairAttemptsRef = useRef(0);
   const lastCompiledSourceRef = useRef<string | null>(null);
+  const lastSuccessfulSourceRef = useRef<string | null>(null);
+  // Errors that triggered the in-flight repair round — consumed when the
+  // repair reply re-emits identical code or contains no code at all.
+  const pendingRepairRef = useRef<{ errors: ScadError[]; stderr: string[] } | null>(null);
   const prevChatStatusRef = useRef(status);
 
   const beginRepairOrFail = useCallback(
@@ -34,11 +38,13 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       if (repairAttemptsRef.current < MAX_REPAIR_ATTEMPTS) {
         repairAttemptsRef.current += 1;
         setRepairAttempt(repairAttemptsRef.current);
+        pendingRepairRef.current = { errors, stderr };
         const lines = errors.map((e) =>
           e.line !== undefined ? `Line ${e.line}: ${e.message}` : e.message,
         );
         sendMessage({ text: buildRepairMessage(lines, stderr) });
       } else {
+        pendingRepairRef.current = null;
         setViewerError({
           title: `Compile failed after ${MAX_REPAIR_ATTEMPTS} automatic fix attempts`,
           hint: "Describe what to change in the chat and I'll try a different approach.",
@@ -58,11 +64,35 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
     if (!lastAssistant) return;
     let code = extractLastScadBlock(uiMessageText(lastAssistant));
-    if (!code) return;
+    if (!code) {
+      // Mid-repair, a reply without code (prose apology, truncated fence) is
+      // itself a failure — surface the stored errors instead of going silent.
+      if (repairAttemptsRef.current > 0 && pendingRepairRef.current) {
+        setViewerError({
+          title: "The automatic fix attempt didn't produce code",
+          hint: "Describe what to change in the chat and I'll try a different approach.",
+          errors: pendingRepairRef.current.errors,
+          stderr: pendingRepairRef.current.stderr,
+        });
+        repairAttemptsRef.current = 0;
+        setRepairAttempt(0);
+        pendingRepairRef.current = null;
+      }
+      return;
+    }
     if (process.env.NEXT_PUBLIC_DEBUG_BREAK === "1") code += "\nthis_is_a_debug_syntax_error(";
-    if (code === lastCompiledSourceRef.current) return;
+    // Unchanged code that already compiled successfully: nothing to do.
+    if (code === lastSuccessfulSourceRef.current) return;
+    // The model re-emitted the failing program verbatim: count it as another
+    // failed round (or exhaust) rather than silently stalling the loop.
+    if (code === lastCompiledSourceRef.current && pendingRepairRef.current) {
+      const pending = pendingRepairRef.current;
+      beginRepairOrFail(code, pending.errors, pending.stderr);
+      return;
+    }
     lastCompiledSourceRef.current = code;
     setViewerError(null);
+    pendingRepairRef.current = null;
     const lintErrors = lintScad(code);
     if (lintErrors.length > 0) beginRepairOrFail(code, lintErrors, []);
     else compile(code);
@@ -72,12 +102,15 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   useEffect(() => {
     if (!result || result.source !== lastCompiledSourceRef.current) return;
     setStl(result.stl);
+    lastSuccessfulSourceRef.current = result.source;
     repairAttemptsRef.current = 0;
     setRepairAttempt(0);
+    pendingRepairRef.current = null;
   }, [result]);
 
-  // Compile failure → auto-repair (compile errors) or surface (timeouts —
-  // the model is too heavy, not wrong; repairing would burn rounds).
+  // Compile failure → auto-repair (code faults) or surface directly:
+  // timeouts mean the model is too heavy, environment failures mean the
+  // compiler never loaded — neither is fixable by rewriting code.
   useEffect(() => {
     if (!failure || failure.source !== lastCompiledSourceRef.current) return;
     if (failure.kind === "timeout") {
@@ -87,17 +120,27 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
         errors: failure.errors,
         stderr: failure.stderr,
       });
+    } else if (failure.kind === "environment") {
+      setViewerError({
+        title: "The 3D compiler failed to load",
+        hint: "This is an environment problem, not a model problem — check your connection and that /openscad assets are served, then reload the page.",
+        errors: failure.errors,
+        stderr: failure.stderr,
+      });
     } else {
       beginRepairOrFail(failure.source, failure.errors, failure.stderr);
     }
   }, [failure, beginRepairOrFail]);
 
   // A fresh human message resets the repair counter and supersedes any
-  // in-flight compile.
+  // in-flight compile; nulling the source ref makes any late-landing stale
+  // result or failure fail its staleness guard.
   const handleSend = useCallback(
     (text: string) => {
       repairAttemptsRef.current = 0;
       setRepairAttempt(0);
+      pendingRepairRef.current = null;
+      lastCompiledSourceRef.current = null;
       cancel();
       sendMessage({ text });
     },

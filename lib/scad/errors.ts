@@ -25,10 +25,13 @@ export function parseScadErrors(stderr: string[], exitCode: number | null): Scad
       errors.push({ message: m[1], raw });
     }
   }
-  if (errors.length === 0 && exitCode !== null && exitCode !== 0) {
+  if (errors.length === 0 && exitCode !== 0) {
     const tail = stderr.slice(-5).join("\n");
     errors.push({
-      message: `OpenSCAD exited with code ${exitCode}${tail ? ` — last output:\n${tail}` : ""}`,
+      message:
+        exitCode !== null
+          ? `OpenSCAD exited with code ${exitCode}${tail ? ` — last output:\n${tail}` : ""}`
+          : tail || "The OpenSCAD compiler failed to start",
     });
   }
   return errors;

@@ -48,6 +48,21 @@ describe("parseScadErrors", () => {
   it("returns nothing for clean output and zero exit", () => {
     expect(parseScadErrors(["Geometries in cache: 3"], 0)).toEqual([]);
   });
+
+  it("surfaces startup failures (null exit code) via the stderr tail", () => {
+    const errors = parseScadErrors(
+      ["Compiler failed to start: Failed to fetch dynamically imported module"],
+      null,
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("Compiler failed to start");
+  });
+
+  it("gives a generic startup message when stderr is empty and exit is null", () => {
+    const errors = parseScadErrors([], null);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("failed to start");
+  });
 });
 
 describe("parseScadWarnings", () => {

@@ -16,17 +16,20 @@ function isProviderId(value: string): value is ProviderId {
   return (PROVIDERS as readonly string[]).includes(value);
 }
 
+/** Misconfiguration with a message that is safe and useful to show the user. */
+export class AiConfigError extends Error {}
+
 /** Resolve the configured model, with friendly errors for misconfiguration. */
 export function getModel(): LanguageModel {
-  const provider = process.env.AI_PROVIDER ?? DEFAULT_PROVIDER;
-  const model = process.env.AI_MODEL ?? DEFAULT_MODEL;
+  const provider = (process.env.AI_PROVIDER ?? DEFAULT_PROVIDER).trim();
+  const model = (process.env.AI_MODEL ?? DEFAULT_MODEL).trim();
   if (!isProviderId(provider)) {
-    throw new Error(
+    throw new AiConfigError(
       `Unknown AI_PROVIDER "${provider}". Valid values: ${PROVIDERS.join(", ")}. Set it in .env.local.`,
     );
   }
   if (!process.env[KEY_ENV[provider]]) {
-    throw new Error(
+    throw new AiConfigError(
       `Missing ${KEY_ENV[provider]} for provider "${provider}" — add it to .env.local. ` +
         `(Google keys are free at https://aistudio.google.com — no credit card.)`,
     );

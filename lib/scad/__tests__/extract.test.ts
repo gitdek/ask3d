@@ -21,14 +21,34 @@ describe("extractLastScadBlock", () => {
     expect(extractLastScadBlock(md)).toBe("cylinder(h=5, d=3);");
   });
 
-  it("falls back to a bare fence when no tagged fence exists", () => {
+  it("falls back to a bare fence when no tagged fence exists and content looks like scad", () => {
     const md = "```\ncube(10);\n```";
     expect(extractLastScadBlock(md)).toBe("cube(10);");
+  });
+
+  it("ignores bare fences whose content is not OpenSCAD", () => {
+    const md = "Use these settings:\n```\nlayer height: 0.2\ninfill: 20%\n```";
+    expect(extractLastScadBlock(md)).toBeNull();
+  });
+
+  it("ignores fences tagged with other languages", () => {
+    const md = "```json\n{\"cube\": 10}\n```";
+    expect(extractLastScadBlock(md)).toBeNull();
   });
 
   it("prefers a tagged fence over a later bare fence", () => {
     const md = "```openscad\ncube(1);\n```\n```\nnot scad\n```";
     expect(extractLastScadBlock(md)).toBe("cube(1);");
+  });
+
+  it("tolerates a stray mid-line ``` mention in prose before a valid fence", () => {
+    const md = "I'll wrap the code in a ```openscad fence:\n\n```openscad\ncube(10);\n```\n";
+    expect(extractLastScadBlock(md)).toBe("cube(10);");
+  });
+
+  it("unwraps a four-backtick quotation around an inner openscad fence", () => {
+    const md = "````\n```openscad\ncube(7);\n```\n````";
+    expect(extractLastScadBlock(md)).toBe("cube(7);");
   });
 
   it("returns null for an unclosed fence", () => {
