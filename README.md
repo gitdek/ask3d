@@ -75,9 +75,42 @@ The `+` button attaches files to the conversation:
   modify directly.
 
 The lint whitelist only permits `import()`/`surface()` of uploaded paths.
-A full 3D statue from a single photo is out of scope for the OpenSCAD
-pipeline — that would need an image-to-3D service (Meshy, Tripo, Zoo);
-there is a clean seam for it in `lib/uploads.ts` if ever wanted.
+
+## Statues (photo → full 3D model, free & local)
+
+A **statue** button on photo chips generates a true 3D model from the
+photo using Microsoft's TRELLIS.2-4B running locally on Apple Silicon
+([trellis-mac](https://github.com/shivampkumar/trellis-mac), vendored
+under `statue-service/trellis-mac/`, gitignored). No API costs; ~5 min
+per statue; ~18GB peak unified memory.
+
+One-time setup (the env is created by `bash setup.sh`; already done if
+`statue-service/trellis-mac/.venv` exists), plus HuggingFace access for
+the gated weights:
+
+```bash
+cd statue-service/trellis-mac
+.venv/bin/hf auth login   # paste a HuggingFace read token
+```
+
+Then request access (instant) to both gated models while logged into
+huggingface.co: `facebook/dinov3-vitl16-pretrain-lvd1689m` and
+`briaai/RMBG-2.0`. First generation downloads ~15GB of weights.
+
+Run the sidecar alongside `npm run dev`:
+
+```bash
+uv run statue-service/server.py
+```
+
+(`STATUE_MOCK=1 uv run statue-service/server.py` serves an instant fake
+model for testing the pipeline without the weights.)
+
+The generated GLB is converted in-browser to a print-ready binary STL
+(Y-up→Z-up, scaled to 80mm max dimension, floored to Z=0), previewed
+immediately, and added as an uploaded mesh so the chat can build around
+it with `import()`. Licensing: TRELLIS.2 weights MIT; DINOv3 is Meta's
+gated license; RMBG-2.0 background removal is CC BY-NC (personal use).
 
 ## Known v1 limits
 

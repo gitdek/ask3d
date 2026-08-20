@@ -8,13 +8,33 @@ import { extractLastScadBlock } from "@/lib/scad/extract";
 import { lintScad } from "@/lib/scad/lint";
 import { buildRepairMessage } from "@/lib/ai/system-prompt";
 import type { CompileFile, ScadError } from "@/lib/scad/types";
-import { describeUpload, processUpload, type UploadedAsset } from "@/lib/uploads";
+import { describeUpload, processUpload, uploadPath, type UploadedAsset } from "@/lib/uploads";
+import {
+  createStatueTask,
+  fetchStatueModel,
+  modelToPrintableStl,
+  pollStatueTask,
+  statueHealth,
+} from "@/lib/statue";
 import ChatPanel from "./chat-panel";
 import { isAutoRepairMessage, uiMessageText } from "./chat-message";
 import ViewerPanel, { type ViewerError } from "./viewer-panel";
 import type { PillState } from "./status-pill";
 
 const MAX_REPAIR_ATTEMPTS = 2;
+const STATUE_TARGET_MAX_DIM_MM = 80;
+const STATUE_POLL_MS = 4000;
+
+export interface StatueProgress {
+  uploadPath: string;
+  phase: "starting" | "generating" | "converting";
+  detail: string;
+  elapsedSeconds: number;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function compileFilesOf(uploads: UploadedAsset[]): CompileFile[] {
   return uploads
@@ -36,6 +56,8 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   const [viewerError, setViewerError] = useState<ViewerError | null>(null);
   const [uploads, setUploads] = useState<UploadedAsset[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [statueProgress, setStatueProgress] = useState<StatueProgress | null>(null);
+  const statueRunningRef = useRef(false);
   const uploadsRef = useRef<UploadedAsset[]>([]);
   // Paths added since the last send — their descriptions (and image parts)
   // ride along on the next message, once.
@@ -202,6 +224,80 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     setUploads(uploadsRef.current);
   }, []);
 
+  // Photo → local TRELLIS.2 sidecar → GLB → printable STL → preview + a new
+  // mesh upload the chat can build around via import().
+  const handleMakeStatue = useCallback(async (path: string) => {
+    const asset = uploadsRef.current.find((u) => u.path === path);
+    if (!asset || asset.kind !== "image" || !asset.file || statueRunningRef.current) return;
+    setUploadError(null);
+    statueRunningRef.current = true;
+    setStatueProgress({ uploadPath: path, phase: "starting", detail: "contacting statue service…", elapsedSeconds: 0 });
+    try {
+      const health = await statueHealth();
+      if (!health) {
+        throw new Error(
+          "The statue service is not running. Start it in a terminal:  uv run statue-service/server.py",
+        );
+      }
+      if (!health.model_ready) {
+        throw new Error(
+          "trellis-mac is not set up — run `bash setup.sh` in statue-service/trellis-mac (see its README).",
+        );
+      }
+      if (health.busy) throw new Error("The statue service is already generating a model.");
+
+      const taskId = await createStatueTask(asset.file);
+      let modelFormat: "glb" | "obj" = "glb";
+      for (;;) {
+        await sleep(STATUE_POLL_MS);
+        const s = await pollStatueTask(taskId);
+        setStatueProgress({
+          uploadPath: path,
+          phase: "generating",
+          detail: s.detail || s.status,
+          elapsedSeconds: s.elapsed_seconds,
+        });
+        if (s.status === "succeeded") {
+          modelFormat = s.model_format ?? "glb";
+          break;
+        }
+        if (s.status === "failed") throw new Error(s.error || "generation failed");
+      }
+
+      setStatueProgress({ uploadPath: path, phase: "converting", detail: "converting to STL…", elapsedSeconds: 0 });
+      const modelBuffer = await fetchStatueModel(taskId);
+      const { stl: statueStl, dims } = await modelToPrintableStl(
+        modelBuffer,
+        modelFormat,
+        STATUE_TARGET_MAX_DIM_MM,
+      );
+
+      const baseName = asset.name.replace(/\.[^.]*$/, "");
+      const statuePath = uploadPath(
+        `${baseName}-statue`,
+        "stl",
+        new Set(uploadsRef.current.map((u) => u.path)),
+      );
+      const statueAsset: UploadedAsset = {
+        name: `${baseName}-statue.stl`,
+        path: statuePath,
+        kind: "mesh",
+        compileData: statueStl,
+        dims,
+      };
+      uploadsRef.current = [...uploadsRef.current, statueAsset];
+      unannouncedRef.current.add(statuePath);
+      setUploads(uploadsRef.current);
+      setViewerError(null);
+      setStl(statueStl);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : String(error));
+    } finally {
+      statueRunningRef.current = false;
+      setStatueProgress(null);
+    }
+  }, []);
+
   // Dev-only debug harness: compile arbitrary source from the console and
   // inspect the last failure.
   useEffect(() => {
@@ -219,6 +315,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   let pillState: PillState;
   if (chatBusy) pillState = { kind: "generating", repairAttempt };
   else if (compilerStatus === "compiling") pillState = { kind: "compiling" };
+  else if (statueProgress) pillState = { kind: "statue", elapsedSeconds: statueProgress.elapsedSeconds };
   else if (viewerError || error) pillState = { kind: "error" };
   else if (stl) pillState = { kind: "ready" };
   else pillState = { kind: "idle" };
@@ -244,10 +341,12 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
             error={error}
             uploads={uploads}
             uploadError={uploadError}
+            statueProgress={statueProgress}
             onSend={handleSend}
             onStop={stop}
             onAttach={handleAttach}
             onRemoveUpload={handleRemoveUpload}
+            onMakeStatue={handleMakeStatue}
           />
         </div>
         <div className="min-h-0 flex-1 md:h-full">

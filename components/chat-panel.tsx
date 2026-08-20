@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { UIMessage } from "ai";
 import type { UploadedAsset } from "@/lib/uploads";
+import type { StatueProgress } from "./app-shell";
 import ChatMessage from "./chat-message";
 
 const EXAMPLE_PROMPTS = [
@@ -41,10 +42,12 @@ interface ChatPanelProps {
   error: Error | undefined;
   uploads: UploadedAsset[];
   uploadError: string | null;
+  statueProgress: StatueProgress | null;
   onSend(text: string): void;
   onStop(): void;
   onAttach(files: File[]): void;
   onRemoveUpload(path: string): void;
+  onMakeStatue(path: string): void;
 }
 
 export default function ChatPanel({
@@ -53,10 +56,12 @@ export default function ChatPanel({
   error,
   uploads,
   uploadError,
+  statueProgress,
   onSend,
   onStop,
   onAttach,
   onRemoveUpload,
+  onMakeStatue,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -131,6 +136,24 @@ export default function ChatPanel({
                       {u.dims.x.toFixed(0)}×{u.dims.y.toFixed(0)}×{u.dims.z.toFixed(0)}mm
                     </span>
                   )}
+                  {u.kind === "image" &&
+                    (statueProgress?.uploadPath === u.path ? (
+                      <span className="animate-pulse text-purple-400">
+                        {statueProgress.phase === "converting"
+                          ? "converting…"
+                          : `sculpting ${Math.floor(statueProgress.elapsedSeconds / 60)}:${String(statueProgress.elapsedSeconds % 60).padStart(2, "0")}`}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={statueProgress !== null}
+                        onClick={() => onMakeStatue(u.path)}
+                        title="Generate a 3D statue from this photo (local TRELLIS.2, ~5 min)"
+                        className="rounded bg-purple-700/60 px-1.5 py-0.5 text-purple-200 transition hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        statue
+                      </button>
+                    ))}
                   <button
                     type="button"
                     aria-label={`Remove ${u.name}`}

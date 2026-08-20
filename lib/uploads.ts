@@ -14,6 +14,8 @@ export interface UploadedAsset {
   imageDataUrl?: string;
   /** Source text (.scad uploads only). */
   scadSource?: string;
+  /** The original picked file (images only) — full resolution for statue generation. */
+  file?: File;
 }
 
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -131,6 +133,7 @@ export async function processUpload(file: File, takenPaths: ReadonlySet<string>)
       compileData: dat,
       heightmap: { rows, cols },
       imageDataUrl: vision.toDataURL("image/jpeg", 0.8),
+      file,
     };
   }
   throw new Error(`Unsupported file "${file.name}" — upload .stl, .scad, or a PNG/JPEG/WebP image.`);
