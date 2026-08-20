@@ -106,6 +106,25 @@ def make_mock_glb() -> bytes:
     )
 
 
+def repair_model(task: dict, glb_path: Path) -> None:
+    """Make the mesh watertight (TRELLIS output has open shells that
+    OpenSCAD's Manifold backend silently drops from CSG). Falls back to the
+    unrepaired mesh if repair fails — still previewable/printable alone."""
+    task["detail"] = "repairing mesh (making it watertight)…"
+    repaired_path = glb_path.with_name("statue-repaired.glb")
+    proc = subprocess.run(
+        [str(TRELLIS_PYTHON), str(SERVICE_DIR / "repair.py"), str(glb_path), str(repaired_path)],
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    if proc.returncode == 0 and repaired_path.exists() and repaired_path.stat().st_size > 0:
+        task["model_path"] = str(repaired_path)
+        task["detail"] = (proc.stdout.strip().splitlines() or ["repaired"])[-1]
+    else:
+        task["detail"] = f"mesh repair failed, serving unrepaired mesh: {proc.stderr.strip()[-150:]}"
+
+
 def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
     task = tasks[task_id]
     task["status"] = "running"
@@ -151,6 +170,8 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
             if candidate.exists() and candidate.stat().st_size > 0:
                 task["model_path"] = str(candidate)
                 task["model_format"] = fmt
+                if fmt == "glb":
+                    repair_model(task, candidate)
                 task["status"] = "succeeded"
                 return
         task["status"] = "failed"

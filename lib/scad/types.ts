@@ -21,7 +21,7 @@ export interface WorkerCompileRequest {
 }
 
 export type WorkerCompileResponse =
-  | { type: "done"; jobId: number; stl: ArrayBuffer; stderr: string[] }
+  | { type: "done"; jobId: number; model: ArrayBuffer; stderr: string[] }
   | { type: "error"; jobId: number; stderr: string[]; exitCode: number | null };
 
 export type CompilerStatus = "idle" | "compiling" | "done" | "error" | "timeout";

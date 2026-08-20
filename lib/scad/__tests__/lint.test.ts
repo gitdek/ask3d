@@ -17,10 +17,8 @@ describe("lintScad", () => {
     expect(lintScad("use <MCAD/gears.scad>")).toHaveLength(1);
   });
 
-  it("detects text()", () => {
-    const errors = lintScad("linear_extrude(2) text(\"hi\");");
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("text()");
+  it("allows text() (fonts are installed in the compiler FS)", () => {
+    expect(lintScad('linear_extrude(2) text("hi");')).toEqual([]);
   });
 
   it("rejects import() when nothing is uploaded", () => {
@@ -57,7 +55,7 @@ describe("lintScad", () => {
   });
 
   it("does not flag comments", () => {
-    expect(lintScad("// text() is forbidden here\ncube(1);")).toEqual([]);
+    expect(lintScad("// use <lib> would fail here\ncube(1);")).toEqual([]);
     expect(lintScad("/* use <lib> would fail */\ncube(1);")).toEqual([]);
   });
 
@@ -70,9 +68,9 @@ describe("lintScad", () => {
   });
 
   it("still flags forbidden calls after a string containing //", () => {
-    const errors = lintScad('url = "https://x"; text("hi");');
+    const errors = lintScad('url = "https://x"; use <lib.scad>');
     expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("text()");
+    expect(errors[0].message).toContain("use");
   });
 
   it("does not flag identifiers containing forbidden names", () => {
@@ -80,7 +78,7 @@ describe("lintScad", () => {
   });
 
   it("reports the correct line number", () => {
-    const errors = lintScad("cube(1);\nsphere(2);\ntext(\"x\");");
+    const errors = lintScad("cube(1);\nsphere(2);\nuse <gears.scad>");
     expect(errors[0].line).toBe(3);
   });
 });

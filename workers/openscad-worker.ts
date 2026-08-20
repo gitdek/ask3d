@@ -36,6 +36,41 @@ const ctx = self as unknown as {
   onmessage: ((event: MessageEvent<WorkerCompileRequest>) => void) | null;
 };
 
+interface OpenScadFS {
+  writeFile(path: string, data: string | Uint8Array): void;
+  readFile(path: string): Uint8Array;
+  mkdirTree?(path: string): void;
+  createPath?(parent: string, path: string, canRead?: boolean, canWrite?: boolean): void;
+}
+
+function ensureDir(fs: OpenScadFS, dir: string): void {
+  if (typeof fs.mkdirTree === "function") fs.mkdirTree(dir);
+  else fs.createPath?.("/", dir.replace(/^\//, ""), true, true);
+}
+
+function writeWithDirs(fs: OpenScadFS, path: string, data: string | Uint8Array): void {
+  const dir = path.slice(0, path.lastIndexOf("/"));
+  if (dir) ensureDir(fs, dir);
+  fs.writeFile(path, data);
+}
+
+// Fonts live in the served bundle, not the wasm — write them into the
+// virtual FS (fontconfig's default /etc/fonts/fonts.conf points at /fonts)
+// so text() works. Same-origin fetches; the HTTP cache makes repeats cheap.
+async function installFonts(fs: OpenScadFS, origin: string): Promise<void> {
+  const [conf, regular, bold] = await Promise.all(
+    ["fonts.conf", "DejaVuSans.ttf", "DejaVuSans-Bold.ttf"].map(async (name) => {
+      const res = await fetch(`${origin}/openscad/fonts/${name}`);
+      if (!res.ok) throw new Error(`font asset ${name} missing (${res.status})`);
+      return new Uint8Array(await res.arrayBuffer());
+    }),
+  );
+  writeWithDirs(fs, "/etc/fonts/fonts.conf", conf);
+  writeWithDirs(fs, "/fonts/DejaVuSans.ttf", regular);
+  writeWithDirs(fs, "/fonts/DejaVuSans-Bold.ttf", bold);
+  ensureDir(fs, "/fontcache");
+}
+
 ctx.onmessage = async (event: MessageEvent<WorkerCompileRequest>) => {
   const { source, jobId, files } = event.data;
   const stderr: string[] = [];
@@ -48,19 +83,20 @@ ctx.onmessage = async (event: MessageEvent<WorkerCompileRequest>) => {
       locateFile: (path) => `/openscad/${path}`,
     });
 
-    if (files && files.length > 0) {
-      if (typeof instance.FS.mkdirTree === "function") instance.FS.mkdirTree("/uploads");
-      else instance.FS.createPath?.("/", "uploads", true, true);
-      for (const file of files) {
-        instance.FS.writeFile(
-          file.path,
-          typeof file.data === "string" ? file.data : new Uint8Array(file.data),
-        );
-      }
+    for (const file of files ?? []) {
+      writeWithDirs(
+        instance.FS,
+        file.path,
+        typeof file.data === "string" ? file.data : new Uint8Array(file.data),
+      );
     }
+    if (/\btext\s*\(/.test(source)) await installFonts(instance.FS, ctx.location.origin);
 
     instance.FS.writeFile("/input.scad", source);
 
+    // Always binary STL: the build's native 3MF writer is broken (wasm
+    // signature mismatch in lib3mf) — 3MF is produced client-side instead.
+    const outPath = "/out.stl";
     let exitCode: number | null = null;
     try {
       exitCode = instance.callMain([
@@ -68,7 +104,7 @@ ctx.onmessage = async (event: MessageEvent<WorkerCompileRequest>) => {
         "--backend=manifold",
         "--export-format=binstl",
         "-o",
-        "/out.stl",
+        outPath,
       ]) ?? null;
     } catch (err: unknown) {
       if (typeof err === "object" && err !== null && "status" in err && typeof err.status === "number") {
@@ -82,18 +118,18 @@ ctx.onmessage = async (event: MessageEvent<WorkerCompileRequest>) => {
       }
     }
 
-    let stl: Uint8Array | null = null;
+    let model: Uint8Array | null = null;
     try {
-      stl = instance.FS.readFile("/out.stl");
+      model = instance.FS.readFile(outPath);
     } catch {
-      stl = null;
+      model = null;
     }
 
-    if (stl && stl.length > 0 && (exitCode === null || exitCode === 0)) {
+    if (model && model.length > 0 && (exitCode === null || exitCode === 0)) {
       // Copy out of the wasm heap; the copy's buffer is exactly sized and
       // safe to transfer (the worker is done with it).
-      const copy = stl.slice();
-      ctx.postMessage({ type: "done", jobId, stl: copy.buffer, stderr }, [copy.buffer]);
+      const copy = model.slice();
+      ctx.postMessage({ type: "done", jobId, model: copy.buffer, stderr }, [copy.buffer]);
     } else {
       ctx.postMessage({ type: "error", jobId, stderr, exitCode: exitCode ?? 1 });
     }

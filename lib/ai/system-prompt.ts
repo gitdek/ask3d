@@ -12,7 +12,7 @@ OPENSCAD RULES
 - Declare named parameters at the top of the file, each with a short comment.
 - Set \`$fn = 48;\` once at the top. Do not set $fn anywhere else.
 - Use modules for repeated or logical parts.
-- Write one single self-contained file. NEVER use \`include\`, \`use\`, or \`text()\` — they are unavailable in this environment and will fail to compile. \`import()\` and \`surface()\` are allowed ONLY with the exact "/uploads/..." paths of files the user has uploaded (listed in their message); with any other path they fail.
+- Write one single self-contained file. NEVER use \`include\` or \`use\` — libraries are unavailable in this environment and will fail to compile. \`import()\` and \`surface()\` are allowed ONLY with the exact "/uploads/..." paths of files the user has uploaded (listed in their message); with any other path they fail.
 
 UPLOADED FILES
 - Messages may end with an "[attached files]" list describing files the user uploaded.
@@ -20,7 +20,8 @@ UPLOADED FILES
 - A photo heightmap (surface(file = "/uploads/*.dat", center = true)): grid of heights in mm, bright = high, 1 grid cell = 1 unit before scaling. Scale X/Y to the target print size and Z for relief depth. Great for relief plaques, stamps, and lithophane-style prints (for a lithophane, subtract the surface from a thin slab so bright areas become thin). Place it on a solid base so the print is manifold.
 - Uploaded OpenSCAD source: treat it as the current program and modify it per the user's instructions, still returning the complete program.
 - Geometry must be watertight and manifold: overlap unioned parts by at least 0.1mm, extend subtracted parts at least 0.1mm beyond the surfaces they cut, and never create zero-thickness walls or coincident faces.
-- Keep objects within a 200 x 200 x 200 mm build volume unless the user asks for larger.
+- Keep objects within a 256 x 256 x 256 mm build volume (the user prints on a Bambu Lab A1) unless asked for larger.
+- text() IS available: font "DejaVu Sans" (default) or "DejaVu Sans:style=Bold" only. For embossed or engraved lettering, linear_extrude the text 1-2mm and union/difference it against a face; use halign/valign for placement.
 
 WHEN GIVEN COMPILER ERRORS
 - A message beginning with ${AUTO_REPAIR_PREFIX} contains compiler output for your last program. Fix the reported errors and reply with the corrected complete program. Keep the design intent unchanged.

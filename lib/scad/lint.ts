@@ -21,10 +21,10 @@ function lineOfIndex(source: string, index: number): number {
   return line;
 }
 
+// text() is allowed: DejaVu Sans is installed into the compiler's virtual FS.
 const ALWAYS_FORBIDDEN: { re: RegExp; what: string; why: string }[] = [
   { re: /\binclude\s*</, what: "include", why: "library files are not available in the browser compiler" },
   { re: /\buse\s*</, what: "use", why: "library files are not available in the browser compiler" },
-  { re: /\btext\s*\(/, what: "text()", why: "fonts are not available in the browser compiler" },
 ];
 
 /**

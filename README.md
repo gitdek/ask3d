@@ -112,14 +112,25 @@ immediately, and added as an uploaded mesh so the chat can build around
 it with `import()`. Licensing: TRELLIS.2 weights MIT; DINOv3 is Meta's
 gated license; RMBG-2.0 background removal is CC BY-NC (personal use).
 
-## Known v1 limits
+## Known limits
 
-- No `text()`, `include`, or `use` in generated models (no fonts or
-  libraries in the bare wasm build) — the system prompt forbids them and a
-  pre-compile lint catches violations. `import()`/`surface()` work only
-  with uploaded files.
-- STL export only (3MF later).
-- Very heavy models (high-res `minkowski`, huge `$fn`) hit the 60s compile
-  timeout by design.
-- Attached photos are re-sent with the whole history each turn (data
-  URLs); they are downscaled to ≤512px to keep payloads small.
+- No `include`/`use` (no OpenSCAD libraries in the wasm build) — the
+  system prompt forbids them and a pre-compile lint catches violations.
+  `text()` IS supported (DejaVu Sans regular/bold, vendored under
+  `public/openscad/fonts/` and installed into the compiler's virtual FS).
+  `import()`/`surface()` work only with uploaded files.
+- Exports: binary STL, plus 3MF (Bambu Studio's native format) built
+  client-side in `lib/threemf.ts` — the wasm build's own 3MF writer is
+  broken (lib3mf signature mismatch), so don't re-enable it without
+  testing.
+- Heavy models hit a 60s compile timeout; the error panel offers a
+  one-click retry with a 5-minute limit.
+- Attached photos ride only on the most recent message that has files
+  (older file parts are trimmed in the chat transport) and are downscaled
+  to ≤512px.
+- Statue meshes are repaired to watertight in the sidecar
+  (`statue-service/repair.py`: per-shell pymeshfix + manifold union,
+  debris shells dropped) — without this, OpenSCAD's Manifold backend
+  silently drops the statue from any CSG combine. Thin features (tails,
+  ears) may still need thickening before printing.
+- The build plate and prompt target a Bambu Lab A1 (256×256×256mm).

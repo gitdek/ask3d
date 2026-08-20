@@ -25,6 +25,8 @@ export interface ViewerError {
   hint: string;
   errors: ScadError[];
   stderr: string[];
+  /** Optional recovery action rendered as a button (e.g. retry with a longer timeout). */
+  retry?: { label: string; run: () => void };
 }
 
 interface ViewerPanelProps {
@@ -32,13 +34,20 @@ interface ViewerPanelProps {
   pillState: PillState;
   viewerError: ViewerError | null;
   nameHint: string;
+  onDownload3mf(): void;
 }
 
 function formatMm(value: number): string {
   return value >= 10 ? value.toFixed(0) : value.toFixed(1);
 }
 
-export default function ViewerPanel({ stl, pillState, viewerError, nameHint }: ViewerPanelProps) {
+export default function ViewerPanel({
+  stl,
+  pillState,
+  viewerError,
+  nameHint,
+  onDownload3mf,
+}: ViewerPanelProps) {
   const [dims, setDims] = useState<ModelDimensions | null>(null);
   const handleDimensions = useCallback((d: ModelDimensions) => setDims(d), []);
 
@@ -73,11 +82,22 @@ export default function ViewerPanel({ stl, pillState, viewerError, nameHint }: V
               hint={viewerError.hint}
               errors={viewerError.errors}
               stderr={viewerError.stderr}
+              retry={viewerError.retry}
             />
           </div>
         )}
 
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-2">
+          {stl && (
+            <button
+              type="button"
+              onClick={onDownload3mf}
+              title="Export as 3MF (Bambu Studio's native format)"
+              className="pointer-events-auto rounded-lg bg-neutral-700 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-neutral-600"
+            >
+              3MF
+            </button>
+          )}
           <DownloadButton stl={stl} nameHint={nameHint} />
         </div>
       </div>

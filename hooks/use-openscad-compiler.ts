@@ -12,6 +12,12 @@ import type {
 
 const COMPILE_TIMEOUT_MS = 60_000;
 
+function spawnWorker(): Worker {
+  return new Worker(new URL("../workers/openscad-worker.ts", import.meta.url), {
+    type: "module",
+  });
+}
+
 /**
  * Owns the openscad-wasm Web Worker lifecycle. A fresh worker per compile
  * (callMain is one-shot); cancellation and timeout are both
@@ -34,12 +40,11 @@ export function useOpenscadCompiler() {
   }, []);
 
   const compile = useCallback(
-    (source: string, files?: CompileFile[]) => {
+    (source: string, files?: CompileFile[], options?: { timeoutMs?: number }) => {
       teardown();
+      const timeoutMs = options?.timeoutMs ?? COMPILE_TIMEOUT_MS;
       const jobId = ++jobIdRef.current;
-      const worker = new Worker(new URL("../workers/openscad-worker.ts", import.meta.url), {
-        type: "module",
-      });
+      const worker = spawnWorker();
       workerRef.current = worker;
       setStatus("compiling");
       setFailure(null);
@@ -48,7 +53,7 @@ export function useOpenscadCompiler() {
         if (event.data.jobId !== jobId || jobId !== jobIdRef.current) return;
         teardown();
         if (event.data.type === "done") {
-          setResult({ source, stl: event.data.stl, stderr: event.data.stderr });
+          setResult({ source, stl: event.data.model, stderr: event.data.stderr });
           setStatus("done");
         } else {
           setFailure({
@@ -80,12 +85,12 @@ export function useOpenscadCompiler() {
         teardown();
         setFailure({
           source,
-          errors: [{ message: "Render timed out after 60 seconds" }],
+          errors: [{ message: `Render timed out after ${Math.round(timeoutMs / 1000)} seconds` }],
           stderr: [],
           kind: "timeout",
         });
         setStatus("timeout");
-      }, COMPILE_TIMEOUT_MS);
+      }, timeoutMs);
 
       // Structured clone, never transfer — the caller keeps its buffers.
       worker.postMessage({ type: "compile", source, jobId, files });

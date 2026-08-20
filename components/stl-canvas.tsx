@@ -10,7 +10,8 @@ interface StlCanvasProps {
   onDimensions?: (dims: ModelDimensions) => void;
 }
 
-// 1 three.js unit = 1 mm. Bed grid is 220x220mm, 10mm cells, 50mm sections.
+// 1 three.js unit = 1 mm. Bed grid matches a Bambu Lab A1: 256x256mm,
+// 10mm cells, 50mm sections.
 export default function StlCanvas({ stl, onDimensions }: StlCanvasProps) {
   // Bounds fits/clips only on mount and Center measures only on mount —
   // remount the subtree per new buffer so the camera reframes each model.
@@ -27,7 +28,7 @@ export default function StlCanvas({ stl, onDimensions }: StlCanvasProps) {
       <ambientLight intensity={0.4} />
       <directionalLight position={[100, 200, 100]} intensity={1.2} castShadow />
       <Grid
-        args={[220, 220]}
+        args={[256, 256]}
         cellSize={10}
         sectionSize={50}
         cellColor="#6b7280"

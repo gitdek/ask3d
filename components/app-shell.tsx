@@ -1,9 +1,11 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type FileUIPart } from "ai";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOpenscadCompiler } from "@/hooks/use-openscad-compiler";
+import { downloadModel, slugify } from "@/lib/stl";
+import { stlTo3mf } from "@/lib/threemf";
 import { extractLastScadBlock } from "@/lib/scad/extract";
 import { lintScad } from "@/lib/scad/lint";
 import { buildRepairMessage } from "@/lib/ai/system-prompt";
@@ -36,6 +38,23 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Attached photos are data URLs re-sent with the whole history every turn;
+ * keep file parts only on the most recent message that has any, so old
+ * images stop inflating request payloads.
+ */
+function trimOldImageParts(messages: UIMessage[]): UIMessage[] {
+  let lastWithFiles = -1;
+  messages.forEach((m, i) => {
+    if (m.parts.some((p) => p.type === "file")) lastWithFiles = i;
+  });
+  return messages.map((m, i) =>
+    i === lastWithFiles || !m.parts.some((p) => p.type === "file")
+      ? m
+      : { ...m, parts: m.parts.filter((p) => p.type !== "file") },
+  );
+}
+
 function compileFilesOf(uploads: UploadedAsset[]): CompileFile[] {
   return uploads
     .filter((u) => u.compileData !== undefined)
@@ -47,9 +66,17 @@ function allowedPathsOf(uploads: UploadedAsset[]): string[] {
 }
 
 export default function AppShell({ providerLabel }: { providerLabel: string }) {
-  const { messages, sendMessage, status, stop, error } = useChat({
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
-  });
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        prepareSendMessagesRequest: ({ messages }) => ({
+          body: { messages: trimOldImageParts(messages) },
+        }),
+      }),
+    [],
+  );
+  const { messages, sendMessage, status, stop, error } = useChat({ transport });
   const { compile, cancel, status: compilerStatus, result, failure } = useOpenscadCompiler();
 
   const [stl, setStl] = useState<ArrayBuffer | null>(null);
@@ -153,11 +180,19 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   useEffect(() => {
     if (!failure || failure.source !== lastCompiledSourceRef.current) return;
     if (failure.kind === "timeout") {
+      const source = failure.source;
       setViewerError({
-        title: "Render timed out after 60 seconds",
-        hint: "This model is too heavy for the in-browser compiler. Ask for a simpler shape or lower detail.",
+        title: "Render timed out",
+        hint: "This model is heavy for the in-browser compiler. Retry with more time, or ask for a simpler shape / lower detail.",
         errors: failure.errors,
         stderr: failure.stderr,
+        retry: {
+          label: "Retry with a 5-minute limit",
+          run: () => {
+            setViewerError(null);
+            compile(source, compileFilesOf(uploadsRef.current), { timeoutMs: 300_000 });
+          },
+        },
       });
     } else if (failure.kind === "environment") {
       setViewerError({
@@ -169,7 +204,21 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     } else {
       beginRepairOrFail(failure.source, failure.errors, failure.stderr);
     }
-  }, [failure, beginRepairOrFail]);
+  }, [failure, beginRepairOrFail, compile]);
+
+  // Convert the current preview STL to 3MF (Bambu Studio's native format)
+  // client-side — works for compiled models and statues alike.
+  const handleDownload3mf = useCallback(
+    (nameHint: string, buffer: ArrayBuffer) => {
+      try {
+        const threeMf = stlTo3mf(buffer, slugify(nameHint));
+        downloadModel(threeMf.buffer as ArrayBuffer, slugify(nameHint), "3mf");
+      } catch (err) {
+        setUploadError(`3MF export failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+    [],
+  );
 
   // A fresh human message resets the repair counter and supersedes any
   // in-flight compile; nulling the source ref makes any late-landing stale
@@ -306,10 +355,22 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     debugWindow.__ask3dCompile = (source: string, files?: CompileFile[]) => {
       lastCompiledSourceRef.current = source;
       setViewerError(null);
-      compile(source, files);
+      compile(source, files ?? compileFilesOf(uploadsRef.current));
+    };
+    debugWindow.__ask3dLastResult = result
+      ? { bytes: result.stl.byteLength, stderr: result.stderr }
+      : null;
+    debugWindow.__ask3dTo3mf = () => {
+      const current = stl;
+      if (!current) return "no model in the viewer";
+      return `3mf: ${stlTo3mf(current, "debug").byteLength} bytes`;
     };
     debugWindow.__ask3dLastFailure = failure;
-  }, [compile, failure]);
+    debugWindow.__ask3dLastAssistantText = (() => {
+      const last = [...messages].reverse().find((m) => m.role === "assistant");
+      return last ? uiMessageText(last) : null;
+    })();
+  }, [compile, failure, stl, result, messages]);
 
   const chatBusy = status === "submitted" || status === "streaming";
   let pillState: PillState;
@@ -350,7 +411,13 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
           />
         </div>
         <div className="min-h-0 flex-1 md:h-full">
-          <ViewerPanel stl={stl} pillState={pillState} viewerError={viewerError} nameHint={nameHint} />
+          <ViewerPanel
+            stl={stl}
+            pillState={pillState}
+            viewerError={viewerError}
+            nameHint={nameHint}
+            onDownload3mf={() => stl && handleDownload3mf(nameHint, stl)}
+          />
         </div>
       </main>
     </div>
