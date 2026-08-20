@@ -6,8 +6,10 @@ import type { WorkerCompileRequest, WorkerCompileResponse } from "@/lib/scad/typ
 // here is derived from OpenSCAD source.
 interface OpenScadInstance {
   FS: {
-    writeFile(path: string, data: string): void;
+    writeFile(path: string, data: string | Uint8Array): void;
     readFile(path: string): Uint8Array;
+    mkdirTree?(path: string): void;
+    createPath?(parent: string, path: string, canRead?: boolean, canWrite?: boolean): void;
   };
   callMain(args: string[]): number | undefined;
   formatException?(ptr: number): string;
@@ -35,7 +37,7 @@ const ctx = self as unknown as {
 };
 
 ctx.onmessage = async (event: MessageEvent<WorkerCompileRequest>) => {
-  const { source, jobId } = event.data;
+  const { source, jobId, files } = event.data;
   const stderr: string[] = [];
   try {
     const { default: OpenSCAD } = await importAtRuntime(`${ctx.location.origin}/openscad/openscad.js`);
@@ -45,6 +47,17 @@ ctx.onmessage = async (event: MessageEvent<WorkerCompileRequest>) => {
       printErr: (line) => stderr.push(line),
       locateFile: (path) => `/openscad/${path}`,
     });
+
+    if (files && files.length > 0) {
+      if (typeof instance.FS.mkdirTree === "function") instance.FS.mkdirTree("/uploads");
+      else instance.FS.createPath?.("/", "uploads", true, true);
+      for (const file of files) {
+        instance.FS.writeFile(
+          file.path,
+          typeof file.data === "string" ? file.data : new Uint8Array(file.data),
+        );
+      }
+    }
 
     instance.FS.writeFile("/input.scad", source);
 

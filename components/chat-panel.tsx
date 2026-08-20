@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { UIMessage } from "ai";
+import type { UploadedAsset } from "@/lib/uploads";
 import ChatMessage from "./chat-message";
 
 const EXAMPLE_PROMPTS = [
@@ -28,17 +29,38 @@ function humanizeChatError(message: string): string {
   return message;
 }
 
+const KIND_ICON: Record<UploadedAsset["kind"], string> = {
+  mesh: "▲",
+  image: "◧",
+  scad: "❮❯",
+};
+
 interface ChatPanelProps {
   messages: UIMessage[];
   busy: boolean;
   error: Error | undefined;
+  uploads: UploadedAsset[];
+  uploadError: string | null;
   onSend(text: string): void;
   onStop(): void;
+  onAttach(files: File[]): void;
+  onRemoveUpload(path: string): void;
 }
 
-export default function ChatPanel({ messages, busy, error, onSend, onStop }: ChatPanelProps) {
+export default function ChatPanel({
+  messages,
+  busy,
+  error,
+  uploads,
+  uploadError,
+  onSend,
+  onStop,
+  onAttach,
+  onRemoveUpload,
+}: ChatPanelProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -92,6 +114,39 @@ export default function ChatPanel({ messages, busy, error, onSend, onStop }: Cha
         <div ref={bottomRef} />
       </div>
 
+      {(uploads.length > 0 || uploadError) && (
+        <div className="border-t border-neutral-800 px-3 py-2">
+          {uploads.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {uploads.map((u) => (
+                <span
+                  key={u.path}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-neutral-800 px-2.5 py-1 text-xs text-neutral-300"
+                  title={u.path}
+                >
+                  <span className="text-neutral-500">{KIND_ICON[u.kind]}</span>
+                  {u.name}
+                  {u.dims && (
+                    <span className="text-neutral-500">
+                      {u.dims.x.toFixed(0)}×{u.dims.y.toFixed(0)}×{u.dims.z.toFixed(0)}mm
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${u.name}`}
+                    onClick={() => onRemoveUpload(u.path)}
+                    className="text-neutral-500 hover:text-red-400"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {uploadError && <p className="mt-1 text-xs text-red-400">{uploadError}</p>}
+        </div>
+      )}
+
       <form
         className="flex items-end gap-2 border-t border-neutral-800 p-3"
         onSubmit={(e) => {
@@ -99,6 +154,25 @@ export default function ChatPanel({ messages, busy, error, onSend, onStop }: Cha
           submit();
         }}
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".stl,.scad,image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.length) onAttach(Array.from(e.target.files));
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          title="Attach an STL, OpenSCAD file, or photo"
+          className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+        >
+          +
+        </button>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}

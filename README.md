@@ -60,11 +60,33 @@ OpenSCAD is GPL-2.0-or-later — see `public/openscad/NOTICE.txt`. Nightly
 snapshots have no semver stability; to upgrade, pin a new zip deliberately and
 re-test.
 
+## Uploads
+
+The `+` button attaches files to the conversation:
+
+- **`.stl` mesh** — written into the compiler's virtual FS; the model
+  references it via `import("/uploads/<name>.stl")` (with its measured
+  bounding box) and can mount, cut, extend, or engrave around it.
+- **Photo (PNG/JPEG/WebP)** — converted in-browser to a `surface()`
+  heightmap (`/uploads/<name>.dat`, 0–8mm, bright = high) for relief
+  plaques and lithophane-style prints; a downscaled copy is also attached
+  to the chat so a multimodal model can see the image.
+- **`.scad` source** — injected into the conversation for the model to
+  modify directly.
+
+The lint whitelist only permits `import()`/`surface()` of uploaded paths.
+A full 3D statue from a single photo is out of scope for the OpenSCAD
+pipeline — that would need an image-to-3D service (Meshy, Tripo, Zoo);
+there is a clean seam for it in `lib/uploads.ts` if ever wanted.
+
 ## Known v1 limits
 
-- No `text()`, `include`, `use`, or `import()` in generated models (no fonts
-  or libraries in the bare wasm build) — the system prompt forbids them and a
-  pre-compile lint catches violations.
+- No `text()`, `include`, or `use` in generated models (no fonts or
+  libraries in the bare wasm build) — the system prompt forbids them and a
+  pre-compile lint catches violations. `import()`/`surface()` work only
+  with uploaded files.
 - STL export only (3MF later).
 - Very heavy models (high-res `minkowski`, huge `$fn`) hit the 60s compile
   timeout by design.
+- Attached photos are re-sent with the whole history each turn (data
+  URLs); they are downscaled to ≤512px to keep payloads small.

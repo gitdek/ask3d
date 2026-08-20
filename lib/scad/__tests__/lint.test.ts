@@ -23,8 +23,37 @@ describe("lintScad", () => {
     expect(errors[0].message).toContain("text()");
   });
 
-  it("detects import()", () => {
-    expect(lintScad("import(\"model.stl\");")).toHaveLength(1);
+  it("rejects import() when nothing is uploaded", () => {
+    const errors = lintScad('import("model.stl");');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("no file has been uploaded");
+  });
+
+  it("allows import() of an uploaded path", () => {
+    expect(lintScad('import("/uploads/dog.stl");', ["/uploads/dog.stl"])).toEqual([]);
+  });
+
+  it("rejects import() of a non-uploaded path even when uploads exist", () => {
+    const errors = lintScad('import("/etc/passwd");', ["/uploads/dog.stl"]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("/uploads/dog.stl");
+  });
+
+  it("rejects import() with a variable path", () => {
+    const errors = lintScad("p = 1; import(p);", ["/uploads/dog.stl"]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("literal string");
+  });
+
+  it("allows surface() of an uploaded heightmap and rejects others", () => {
+    expect(
+      lintScad('surface(file = "/uploads/turing.dat", center = true);', ["/uploads/turing.dat"]),
+    ).toEqual([]);
+    expect(lintScad('surface(file = "other.dat");')).toHaveLength(1);
+  });
+
+  it("ignores import() mentioned in comments", () => {
+    expect(lintScad('// import("x.stl") would fail\ncube(1);')).toEqual([]);
   });
 
   it("does not flag comments", () => {

@@ -5,10 +5,19 @@ export interface ScadError {
   raw?: string;
 }
 
+/** Extra file written into the compiler's virtual FS before callMain. */
+export interface CompileFile {
+  /** Absolute virtual path, e.g. "/uploads/model.stl". */
+  path: string;
+  /** Binary (STL) or text (.dat heightmap / .scad) content. */
+  data: ArrayBuffer | string;
+}
+
 export interface WorkerCompileRequest {
   type: "compile";
   source: string;
   jobId: number;
+  files?: CompileFile[];
 }
 
 export type WorkerCompileResponse =

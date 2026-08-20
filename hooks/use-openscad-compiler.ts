@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { parseScadErrors } from "@/lib/scad/errors";
 import type {
   CompileFailure,
+  CompileFile,
   CompileSuccess,
   CompilerStatus,
   WorkerCompileResponse,
@@ -33,7 +34,7 @@ export function useOpenscadCompiler() {
   }, []);
 
   const compile = useCallback(
-    (source: string) => {
+    (source: string, files?: CompileFile[]) => {
       teardown();
       const jobId = ++jobIdRef.current;
       const worker = new Worker(new URL("../workers/openscad-worker.ts", import.meta.url), {
@@ -86,7 +87,8 @@ export function useOpenscadCompiler() {
         setStatus("timeout");
       }, COMPILE_TIMEOUT_MS);
 
-      worker.postMessage({ type: "compile", source, jobId });
+      // Structured clone, never transfer — the caller keeps its buffers.
+      worker.postMessage({ type: "compile", source, jobId, files });
     },
     [teardown],
   );
