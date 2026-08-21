@@ -83,8 +83,17 @@ photo using Microsoft's TRELLIS.2-4B. The sidecar's default mode
 (`STATUE_MODE=space`) runs the **full pipeline on Hugging Face's free
 ZeroGPU** via the `microsoft/TRELLIS.2` Space — ~40s of GPU per statue,
 about 2 statues/day on a free account's quota (each pipeline stage
-reserves 120s against the ~5-minute daily allowance), dramatically
-better output than the local port. `STATUE_MODE=local` uses
+reserves 120s against the ~5-minute daily allowance).
+
+**`STATUE_MODE=hunyuan` (alias `local`) is the unlimited local engine:**
+Hunyuan3D-2.1 via the native MLX port
+([dgrauet/Hunyuan3D-2.1-mlx](https://github.com/dgrauet/Hunyuan3D-2.1-mlx),
+vendored under `statue-service/hunyuan-mlx/`, gitignored). ~2 min per
+statue on an M-series Mac, near-watertight output, quality within
+striking distance of paid services (A/B-tested: `octree 512 / 50 steps`
+is the sweet spot — set via `STATUE_HY_OCTREE` / `STATUE_HY_STEPS`). A
+rembg cutout pre-step runs automatically — the port does no background
+removal itself and reconstructs backgrounds verbatim without it. `STATUE_MODE=local` uses
 [trellis-mac](https://github.com/shivampkumar/trellis-mac) on-device
 (vendored under `statue-service/trellis-mac/`, gitignored) — offline and
 unlimited, but its output is markedly blobbier than the full pipeline:
