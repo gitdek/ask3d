@@ -18,6 +18,7 @@ centered in XY. (STL avoids glTF up-axis ambiguity entirely.)
 Usage: python repair.py input.glb output.stl
 """
 
+import os
 import sys
 
 import numpy as np
@@ -133,6 +134,34 @@ def main() -> int:
     # Final print placement: centered in XY, base on z=0.
     lo, hi = union.bounds
     union.apply_translation([-(lo[0] + hi[0]) / 2, -(lo[1] + hi[1]) / 2, -lo[2]])
+
+    # Decimate: beyond ~200K faces a statue gains nothing at print scale
+    # (a 0.4mm nozzle can't resolve it) but makes OpenSCAD import() slow
+    # enough to threaten the compile timeout. STATUE_MAX_FACES=0 disables.
+    max_faces = int(os.environ.get("STATUE_MAX_FACES", "200000"))
+    if max_faces > 0 and len(union.faces) > max_faces:
+        try:
+            import fast_simplification
+
+            v, f = fast_simplification.simplify(
+                np.asarray(union.vertices, np.float32),
+                np.asarray(union.faces, np.int32),
+                target_count=max_faces,
+            )
+            decimated = trimesh.Trimesh(v, f)
+            if not decimated.is_watertight:
+                # Simplification leaves hairline cracks; a MeshFix pass heals them.
+                vc, fc = pymeshfix.clean_from_arrays(
+                    np.asarray(decimated.vertices, float), np.asarray(decimated.faces, np.int32)
+                )
+                decimated = trimesh.Trimesh(vc, fc)
+            if decimated.is_watertight:
+                print(f"repair: decimated {len(union.faces)} -> {len(decimated.faces)} faces")
+                union = decimated
+            else:
+                print("repair: decimation broke watertightness — keeping full resolution")
+        except Exception as exc:  # noqa: BLE001 — decimation is best-effort
+            print(f"repair: decimation skipped ({exc})")
 
     union.export(dst)  # extension decides format; we pass .stl
     print(f"repair: {len(mesh.faces)} faces -> {len(union.faces)} faces, watertight, "

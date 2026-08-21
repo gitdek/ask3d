@@ -1,9 +1,12 @@
 const SERVICE_URL = process.env.NEXT_PUBLIC_STATUE_SERVICE_URL ?? "http://127.0.0.1:8765";
 
+export type StatueEngine = "hunyuan" | "space";
+
 export interface StatueHealth {
   ok: boolean;
   mock: boolean;
-  model_ready: boolean;
+  default_engine: string;
+  engines: Record<string, boolean>;
   busy: boolean;
 }
 
@@ -25,9 +28,10 @@ export async function statueHealth(): Promise<StatueHealth | null> {
   }
 }
 
-export async function createStatueTask(image: File): Promise<string> {
+export async function createStatueTask(image: File, engine: StatueEngine): Promise<string> {
   const form = new FormData();
   form.append("image", image, image.name);
+  form.append("engine", engine);
   const res = await fetch(`${SERVICE_URL}/tasks`, { method: "POST", body: form });
   if (!res.ok) {
     const body = await res.json().catch(() => null);

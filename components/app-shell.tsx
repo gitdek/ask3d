@@ -17,6 +17,7 @@ import {
   modelToPrintableStl,
   pollStatueTask,
   statueHealth,
+  type StatueEngine,
 } from "@/lib/statue";
 import ChatPanel from "./chat-panel";
 import { isAutoRepairMessage, uiMessageText } from "./chat-message";
@@ -84,6 +85,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   const [uploads, setUploads] = useState<UploadedAsset[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [statueProgress, setStatueProgress] = useState<StatueProgress | null>(null);
+  const [statueEngine, setStatueEngine] = useState<StatueEngine>("hunyuan");
   const statueRunningRef = useRef(false);
   const uploadsRef = useRef<UploadedAsset[]>([]);
   // Paths added since the last send — their descriptions (and image parts)
@@ -288,14 +290,16 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
           "The statue service is not running. Start it in a terminal:  uv run statue-service/server.py",
         );
       }
-      if (!health.model_ready) {
+      if (!health.engines?.[statueEngine]) {
         throw new Error(
-          "trellis-mac is not set up — run `bash setup.sh` in statue-service/trellis-mac (see its README).",
+          statueEngine === "space"
+            ? "The cloud engine needs the trellis-mac venv + a Hugging Face login (see statue-service README)."
+            : "The local engine is not set up — see the hunyuan-mlx section of the statue-service README.",
         );
       }
       if (health.busy) throw new Error("The statue service is already generating a model.");
 
-      const taskId = await createStatueTask(asset.file);
+      const taskId = await createStatueTask(asset.file, statueEngine);
       let modelFormat: "glb" | "obj" | "stl" = "glb";
       for (;;) {
         await sleep(STATUE_POLL_MS);
@@ -350,7 +354,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       statueRunningRef.current = false;
       setStatueProgress(null);
     }
-  }, []);
+  }, [statueEngine]);
 
   // Dev-only debug harness: compile arbitrary source from the console and
   // inspect the last failure.
@@ -395,9 +399,20 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
         <h1 className="text-sm font-bold tracking-widest">
           ask<span className="text-blue-500">3d</span>
         </h1>
-        <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-400">
-          {providerLabel}
-        </span>
+        <div className="flex items-center gap-2">
+          <select
+            value={statueEngine}
+            onChange={(e) => setStatueEngine(e.target.value as StatueEngine)}
+            title="Which engine generates photo statues"
+            className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300 focus:outline-none"
+          >
+            <option value="hunyuan">statues: local · unlimited</option>
+            <option value="space">statues: cloud · best, ~2/day</option>
+          </select>
+          <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-400">
+            {providerLabel}
+          </span>
+        </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col-reverse md:grid md:grid-cols-[minmax(360px,40%)_1fr]">
         <div className="min-h-0 flex-1 md:h-full">

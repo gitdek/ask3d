@@ -24,7 +24,7 @@ import uuid
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 
@@ -151,7 +151,7 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
     #     cutout pre-step (the port does no background removal itself).
     #   "trellis": legacy trellis-mac on-device — erratic quality, kept
     #     for experiments only.
-    mode = os.environ.get("STATUE_MODE", "space")
+    mode = task.get("engine") or os.environ.get("STATUE_MODE", "space")
     cwd = TRELLIS_DIR
     if mode == "space":
         task["detail"] = "generating on HF ZeroGPU (full TRELLIS.2)…"
@@ -232,28 +232,36 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
         task["error"] = str(exc)
 
 
+VALID_ENGINES = {"space", "hunyuan", "local", "trellis"}
+
+
 @app.get("/health")
 def health() -> dict:
-    mode = os.environ.get("STATUE_MODE", "space")
-    ready = HUNYUAN_PYTHON.exists() if mode in ("hunyuan", "local") else TRELLIS_PYTHON.exists()
     return {
         "ok": True,
         "mock": MOCK,
-        "mode": mode,
-        "model_ready": MOCK or ready,
+        "default_engine": os.environ.get("STATUE_MODE", "space"),
+        "engines": {
+            "space": TRELLIS_PYTHON.exists(),
+            "hunyuan": HUNYUAN_PYTHON.exists(),
+        },
         "busy": busy_task() is not None,
     }
 
 
 @app.post("/tasks")
-async def create_task(image: UploadFile) -> dict:
+async def create_task(image: UploadFile, engine: str = Form("")) -> dict:
+    requested = engine or os.environ.get("STATUE_MODE", "space")
+    if requested not in VALID_ENGINES:
+        raise HTTPException(status_code=400, detail=f"unknown engine '{requested}'")
     with tasks_lock:
         if busy_task() is not None:
             raise HTTPException(status_code=409, detail="A statue is already being generated")
-        if not MOCK and not TRELLIS_PYTHON.exists():
+        needed = HUNYUAN_PYTHON if requested in ("hunyuan", "local") else TRELLIS_PYTHON
+        if not MOCK and not needed.exists():
             raise HTTPException(
                 status_code=503,
-                detail="trellis-mac is not set up — run `bash setup.sh` in statue-service/trellis-mac",
+                detail=f"engine '{requested}' is not set up (missing {needed.parent.parent.name} venv)",
             )
         task_id = uuid.uuid4().hex[:12]
         task_dir = WORK_DIR / task_id
@@ -261,7 +269,12 @@ async def create_task(image: UploadFile) -> dict:
         suffix = ".png" if (image.filename or "").lower().endswith(".png") else ".jpg"
         image_path = task_dir / f"input{suffix}"
         image_path.write_bytes(await image.read())
-        tasks[task_id] = {"status": "queued", "created_at": time.time(), "detail": "queued"}
+        tasks[task_id] = {
+            "status": "queued",
+            "created_at": time.time(),
+            "detail": "queued",
+            "engine": requested,
+        }
     thread = threading.Thread(
         target=run_generation, args=(task_id, image_path, task_dir / "statue"), daemon=True
     )
