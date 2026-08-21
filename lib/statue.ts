@@ -47,6 +47,25 @@ export async function createStatueTask(images: File[], engine: StatueEngine): Pr
   return (await res.json()).id;
 }
 
+export interface LatestStatueTask {
+  id: string;
+  status: StatueTaskStatus["status"];
+  detail: string;
+  age_seconds: number;
+  model_format: StatueTaskStatus["model_format"];
+  engine: string | null;
+}
+
+/** The sidecar's most recent task, or null — used to adopt orphaned generations after a page reload. */
+export async function fetchLatestStatueTask(): Promise<LatestStatueTask | null> {
+  try {
+    const res = await fetch(`${SERVICE_URL}/tasks-latest`, { signal: AbortSignal.timeout(2500) });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function pollStatueTask(id: string): Promise<StatueTaskStatus> {
   const res = await fetch(`${SERVICE_URL}/tasks/${id}`);
   if (!res.ok) throw new Error(`statue service returned ${res.status}`);

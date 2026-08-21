@@ -13,6 +13,7 @@ import type { CompileFile, ScadError } from "@/lib/scad/types";
 import { describeUpload, processUpload, uploadPath, type UploadedAsset } from "@/lib/uploads";
 import {
   createStatueTask,
+  fetchLatestStatueTask,
   fetchStatueModel,
   modelToPrintableStl,
   pollStatueTask,
@@ -275,6 +276,92 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     setUploads(uploadsRef.current);
   }, []);
 
+  // Poll a sidecar task to completion, convert the model, and register the
+  // statue as a preview + uploaded mesh. Shared by fresh generations and
+  // adopted (post-reload) tasks.
+  const adoptStatueTask = useCallback(
+    async (taskId: string, baseName: string, chipPath: string | null) => {
+      let modelFormat: "glb" | "obj" | "stl" = "glb";
+      for (;;) {
+        await sleep(STATUE_POLL_MS);
+        const s = await pollStatueTask(taskId);
+        setStatueProgress({
+          uploadPath: chipPath ?? "",
+          phase: "generating",
+          detail: s.detail || s.status,
+          elapsedSeconds: s.elapsed_seconds,
+        });
+        if (s.status === "succeeded") {
+          modelFormat = s.model_format ?? "glb";
+          break;
+        }
+        if (s.status === "failed") throw new Error(s.error || "generation failed");
+      }
+
+      setStatueProgress({
+        uploadPath: chipPath ?? "",
+        phase: "converting",
+        detail: "converting to STL…",
+        elapsedSeconds: 0,
+      });
+      const modelBuffer = await fetchStatueModel(taskId);
+      const { stl: statueStl, dims } = await modelToPrintableStl(
+        modelBuffer,
+        modelFormat,
+        STATUE_TARGET_MAX_DIM_MM,
+      );
+      const statuePath = uploadPath(
+        `${baseName}-statue`,
+        "stl",
+        new Set(uploadsRef.current.map((u) => u.path)),
+      );
+      const statueAsset: UploadedAsset = {
+        name: `${baseName}-statue.stl`,
+        path: statuePath,
+        kind: "mesh",
+        compileData: statueStl,
+        dims,
+      };
+      uploadsRef.current = [...uploadsRef.current, statueAsset];
+      unannouncedRef.current.add(statuePath);
+      setUploads(uploadsRef.current);
+      setViewerError(null);
+      setStl(statueStl);
+    },
+    [],
+  );
+
+  // A statue task keeps running on the sidecar through page reloads —
+  // adopt a running (or freshly finished) task instead of orphaning it.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const latest = await fetchLatestStatueTask();
+      if (cancelled || !latest || statueRunningRef.current) return;
+      const active = latest.status === "queued" || latest.status === "running";
+      const fresh = latest.status === "succeeded" && latest.age_seconds < 600;
+      if (!active && !fresh) return;
+      statueRunningRef.current = true;
+      setStatueProgress({
+        uploadPath: "",
+        phase: "generating",
+        detail: "reconnected to a statue in progress…",
+        elapsedSeconds: 0,
+      });
+      try {
+        await adoptStatueTask(latest.id, "recovered", null);
+      } catch (error) {
+        setUploadError(error instanceof Error ? error.message : String(error));
+      } finally {
+        statueRunningRef.current = false;
+        setStatueProgress(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [adoptStatueTask]);
+
   // Photo → local TRELLIS.2 sidecar → GLB → printable STL → preview + a new
   // mesh upload the chat can build around via import().
   const handleMakeStatue = useCallback(async (path: string) => {
@@ -314,55 +401,15 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
             ]
           : [asset.file];
       const taskId = await createStatueTask(images, statueEngine);
-      let modelFormat: "glb" | "obj" | "stl" = "glb";
-      for (;;) {
-        await sleep(STATUE_POLL_MS);
-        const s = await pollStatueTask(taskId);
-        setStatueProgress({
-          uploadPath: path,
-          phase: "generating",
-          detail: s.detail || s.status,
-          elapsedSeconds: s.elapsed_seconds,
-        });
-        if (s.status === "succeeded") {
-          modelFormat = s.model_format ?? "glb";
-          break;
-        }
-        if (s.status === "failed") throw new Error(s.error || "generation failed");
-      }
-
-      setStatueProgress({ uploadPath: path, phase: "converting", detail: "converting to STL…", elapsedSeconds: 0 });
-      const modelBuffer = await fetchStatueModel(taskId);
-      const { stl: statueStl, dims } = await modelToPrintableStl(
-        modelBuffer,
-        modelFormat,
-        STATUE_TARGET_MAX_DIM_MM,
-      );
-
-      const baseName = asset.name.replace(/\.[^.]*$/, "");
-      const statuePath = uploadPath(
-        `${baseName}-statue`,
-        "stl",
-        new Set(uploadsRef.current.map((u) => u.path)),
-      );
-      const statueAsset: UploadedAsset = {
-        name: `${baseName}-statue.stl`,
-        path: statuePath,
-        kind: "mesh",
-        compileData: statueStl,
-        dims,
-      };
-      uploadsRef.current = [...uploadsRef.current, statueAsset];
-      unannouncedRef.current.add(statuePath);
-      setUploads(uploadsRef.current);
-      setViewerError(null);
-      setStl(statueStl);
+      await adoptStatueTask(taskId, asset.name.replace(/\.[^.]*$/, ""), path);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setUploadError(
         /ZeroGPU quota/i.test(message)
           ? "Today's free GPU quota for statue generation is used up (about 2 statues/day on a free Hugging Face account). It resets 24 hours after the first generation — try again later."
-          : message,
+          : /already being generated/i.test(message)
+            ? "A statue is already generating — it keeps running even across page reloads, and the app reconnects to it automatically. Give it a minute or two."
+            : message,
       );
     } finally {
       statueRunningRef.current = false;

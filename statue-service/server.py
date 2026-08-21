@@ -308,6 +308,23 @@ async def create_task(
     return {"id": task_id}
 
 
+@app.get("/tasks-latest")
+def latest_task() -> dict:
+    if not tasks:
+        raise HTTPException(status_code=404, detail="no tasks yet")
+    task_id = max(tasks, key=lambda t: tasks[t]["created_at"])
+    task = tasks[task_id]
+    return {
+        "id": task_id,
+        "status": task["status"],
+        "detail": task.get("detail", ""),
+        "created_at": task["created_at"],
+        "age_seconds": round(time.time() - task["created_at"]),
+        "model_format": task.get("model_format"),
+        "engine": task.get("engine"),
+    }
+
+
 @app.get("/tasks/{task_id}")
 def get_task(task_id: str) -> dict:
     task = tasks.get(task_id)
