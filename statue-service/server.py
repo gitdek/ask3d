@@ -154,6 +154,9 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
             str(out_base.parent),
         ]
     else:
+        # 32 sampler steps by default: the port's approximated compute paths
+        # need more steps to converge than the upstream default of 12 —
+        # at 12, thin structures come out as disconnected fragments.
         cmd = [
             str(TRELLIS_PYTHON),
             "generate.py",
@@ -161,6 +164,8 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
             "--no-texture",
             "--pipeline-type",
             os.environ.get("STATUE_PIPELINE", "1024"),
+            "--steps",
+            os.environ.get("STATUE_STEPS", "32"),
             "--output",
             str(out_base),
         ]
