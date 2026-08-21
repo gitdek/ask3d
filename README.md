@@ -76,13 +76,18 @@ The `+` button attaches files to the conversation:
 
 The lint whitelist only permits `import()`/`surface()` of uploaded paths.
 
-## Statues (photo → full 3D model, free & local)
+## Statues (photo → full 3D model, free)
 
 A **statue** button on photo chips generates a true 3D model from the
-photo using Microsoft's TRELLIS.2-4B running locally on Apple Silicon
-([trellis-mac](https://github.com/shivampkumar/trellis-mac), vendored
-under `statue-service/trellis-mac/`, gitignored). No API costs; ~5 min
-per statue; ~18GB peak unified memory.
+photo using Microsoft's TRELLIS.2-4B. The sidecar's default mode
+(`STATUE_MODE=space`) runs the **full pipeline on Hugging Face's free
+ZeroGPU** via the `microsoft/TRELLIS.2` Space — ~40s of GPU per statue,
+roughly 4–6 statues/day on a free account's quota, dramatically better
+output than the local port. `STATUE_MODE=local` uses
+[trellis-mac](https://github.com/shivampkumar/trellis-mac) on-device
+(vendored under `statue-service/trellis-mac/`, gitignored) — offline but
+currently produces poor results: the port's background-removal stage is
+broken, so it reconstructs the photo's background along with the subject.
 
 One-time setup (the env is created by `bash setup.sh`; already done if
 `statue-service/trellis-mac/.venv` exists), plus HuggingFace access for
@@ -128,9 +133,13 @@ gated license; RMBG-2.0 background removal is CC BY-NC (personal use).
 - Attached photos ride only on the most recent message that has files
   (older file parts are trimmed in the chat transport) and are downscaled
   to ≤512px.
-- Statue meshes are repaired to watertight in the sidecar
-  (`statue-service/repair.py`: per-shell pymeshfix + manifold union,
-  debris shells dropped) — without this, OpenSCAD's Manifold backend
-  silently drops the statue from any CSG combine. Thin features (tails,
-  ears) may still need thickening before printing.
+- Statue meshes are repaired in the sidecar (`statue-service/repair.py`):
+  position-weld (textured GLBs shatter into phantom components at UV
+  seams), per-shell pymeshfix, manifold union, debris dropped, then a
+  deterministic Y-up→Z-up print orientation. Without this, OpenSCAD's
+  Manifold backend silently drops the statue from any CSG combine. Thin
+  features (tails, ears) may still need thickening before printing.
+- Single-photo statues hallucinate the unseen side; a top-down photo
+  gives the model almost nothing of the face. Eye-level, plain-background
+  photos produce far better heads.
 - The build plate and prompt target a Bambu Lab A1 (256×256×256mm).

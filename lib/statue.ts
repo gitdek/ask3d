@@ -11,7 +11,8 @@ export interface StatueTaskStatus {
   status: "queued" | "running" | "succeeded" | "failed";
   detail: string;
   elapsed_seconds: number;
-  model_format: "glb" | "obj" | null;
+  /** "stl" is the repaired path: already watertight, upright, Z-up. */
+  model_format: "glb" | "obj" | "stl" | null;
   error: string | null;
 }
 
@@ -48,21 +49,30 @@ export async function fetchStatueModel(id: string): Promise<ArrayBuffer> {
 }
 
 /**
- * Convert a generated GLB/OBJ into a print-ready binary STL:
- * Y-up → Z-up (rotateX +π/2), uniform scale so the largest dimension hits
- * the target (AI models are bbox-normalized, never real meters), centered
- * in XY and floored to Z=0. Returns Z-up printer-mm dims.
+ * Convert a generated model into a print-ready binary STL, uniformly scaled
+ * so the largest dimension hits the target (AI models are bbox-normalized,
+ * never real meters), centered in XY and floored to Z=0.
+ *
+ * "stl" input comes from the sidecar's repair step and is ALREADY upright
+ * Z-up — no axis correction. GLB/OBJ (unrepaired fallback) get the glTF
+ * Y-up → Z-up rotation. Returns Z-up printer-mm dims.
  */
 export async function modelToPrintableStl(
   buffer: ArrayBuffer,
-  format: "glb" | "obj",
+  format: "glb" | "obj" | "stl",
   targetMaxDimMm: number,
 ): Promise<{ stl: ArrayBuffer; dims: { x: number; y: number; z: number } }> {
   const three = await import("three");
   const { STLExporter } = await import("three/addons/exporters/STLExporter.js");
 
   let root: import("three").Object3D;
-  if (format === "glb") {
+  let alreadyZUp = false;
+  if (format === "stl") {
+    const { STLLoader } = await import("three/addons/loaders/STLLoader.js");
+    const geometry = new STLLoader().parse(buffer);
+    root = new three.Mesh(geometry);
+    alreadyZUp = true;
+  } else if (format === "glb") {
     const [{ GLTFLoader }, { DRACOLoader }] = await Promise.all([
       import("three/addons/loaders/GLTFLoader.js"),
       import("three/addons/loaders/DRACOLoader.js"),
@@ -88,7 +98,7 @@ export async function modelToPrintableStl(
 
   const wrapper = new three.Group();
   wrapper.add(root);
-  wrapper.rotation.x = Math.PI / 2; // Y-up → Z-up
+  if (!alreadyZUp) wrapper.rotation.x = Math.PI / 2; // Y-up → Z-up
 
   let box = new three.Box3().setFromObject(wrapper); // also updates world matrices
   const size = new three.Vector3();

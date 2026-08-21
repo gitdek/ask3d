@@ -296,7 +296,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       if (health.busy) throw new Error("The statue service is already generating a model.");
 
       const taskId = await createStatueTask(asset.file);
-      let modelFormat: "glb" | "obj" = "glb";
+      let modelFormat: "glb" | "obj" | "stl" = "glb";
       for (;;) {
         await sleep(STATUE_POLL_MS);
         const s = await pollStatueTask(taskId);
@@ -340,7 +340,12 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       setViewerError(null);
       setStl(statueStl);
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : String(error));
+      const message = error instanceof Error ? error.message : String(error);
+      setUploadError(
+        /ZeroGPU quota/i.test(message)
+          ? "Today's free GPU quota for statue generation is used up (about 2 statues/day on a free Hugging Face account). It resets 24 hours after the first generation — try again later."
+          : message,
+      );
     } finally {
       statueRunningRef.current = false;
       setStatueProgress(null);

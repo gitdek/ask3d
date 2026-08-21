@@ -107,11 +107,12 @@ def make_mock_glb() -> bytes:
 
 
 def repair_model(task: dict, glb_path: Path) -> None:
-    """Make the mesh watertight (TRELLIS output has open shells that
-    OpenSCAD's Manifold backend silently drops from CSG). Falls back to the
-    unrepaired mesh if repair fails — still previewable/printable alone."""
-    task["detail"] = "repairing mesh (making it watertight)…"
-    repaired_path = glb_path.with_name("statue-repaired.glb")
+    """Make the mesh watertight and upright (TRELLIS output has open shells
+    that OpenSCAD's Manifold backend silently drops from CSG, and sits in
+    the input photo's camera frame). Emits print-oriented binary STL.
+    Falls back to the unrepaired GLB if repair fails."""
+    task["detail"] = "repairing mesh (watertight + upright)…"
+    repaired_path = glb_path.with_name("statue-repaired.stl")
     proc = subprocess.run(
         [str(TRELLIS_PYTHON), str(SERVICE_DIR / "repair.py"), str(glb_path), str(repaired_path)],
         capture_output=True,
@@ -120,6 +121,7 @@ def repair_model(task: dict, glb_path: Path) -> None:
     )
     if proc.returncode == 0 and repaired_path.exists() and repaired_path.stat().st_size > 0:
         task["model_path"] = str(repaired_path)
+        task["model_format"] = "stl"
         task["detail"] = (proc.stdout.strip().splitlines() or ["repaired"])[-1]
     else:
         task["detail"] = f"mesh repair failed, serving unrepaired mesh: {proc.stderr.strip()[-150:]}"
@@ -139,14 +141,29 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
         task["status"] = "succeeded"
         return
 
-    cmd = [
-        str(TRELLIS_PYTHON),
-        "generate.py",
-        str(image_path),
-        "--no-texture",
-        "--output",
-        str(out_base),
-    ]
+    # "space" (default): full TRELLIS.2 pipeline on the free HF ZeroGPU Space
+    # (~5 GPU-min/day on a free account, ~40s per statue; needs `hf auth login`).
+    # "local": trellis-mac on this machine — currently produces poor results
+    # because its background-removal stage is broken; use only offline.
+    if os.environ.get("STATUE_MODE", "space") == "space":
+        task["detail"] = "generating on HF ZeroGPU (full TRELLIS.2)…"
+        cmd = [
+            str(TRELLIS_PYTHON),
+            str(SERVICE_DIR / "space_generate.py"),
+            str(image_path),
+            str(out_base.parent),
+        ]
+    else:
+        cmd = [
+            str(TRELLIS_PYTHON),
+            "generate.py",
+            str(image_path),
+            "--no-texture",
+            "--pipeline-type",
+            os.environ.get("STATUE_PIPELINE", "1024"),
+            "--output",
+            str(out_base),
+        ]
     try:
         proc = subprocess.Popen(
             cmd, cwd=TRELLIS_DIR, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
@@ -235,7 +252,11 @@ def get_model(task_id: str) -> Response:
     task = tasks.get(task_id)
     if task is None or task["status"] != "succeeded":
         raise HTTPException(status_code=404, detail="no model for this task")
-    media = "model/gltf-binary" if task["model_format"] == "glb" else "text/plain"
+    media = {
+        "glb": "model/gltf-binary",
+        "stl": "application/octet-stream",
+        "obj": "text/plain",
+    }.get(task["model_format"], "application/octet-stream")
     return FileResponse(task["model_path"], media_type=media)
 
 

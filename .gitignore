@@ -42,3 +42,11 @@ yarn-error.log*
 next-env.d.ts
 statue-service/trellis-mac/
 statue-service/*.jpg
+statue-service/*.png
+statue-service/*.npy
+statue-service/*.glb
+statue-service/*.obj
+statue-service/*.stl
+public/turing*
+public/pose*.stl
+public/statue*.stl
