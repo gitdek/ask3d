@@ -161,6 +161,16 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
             str(image_path),
             str(out_base.parent),
         ]
+    elif mode == "hunyuan-space":
+        n = 1 + len(task.get("extra_images", []))
+        task["detail"] = f"generating on HF ZeroGPU (Hunyuan3D-2.1, {n} photo{'s' if n > 1 else ''})…"
+        cmd = [
+            str(TRELLIS_PYTHON),
+            str(SERVICE_DIR / "hunyuan_space_generate.py"),
+            str(out_base.parent),
+            str(image_path),
+            *task.get("extra_images", []),
+        ]
     elif mode in ("hunyuan", "local"):
         task["detail"] = "removing background…"
         cutout_path = image_path.with_name("cutout.png")
@@ -232,7 +242,7 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
         task["error"] = str(exc)
 
 
-VALID_ENGINES = {"space", "hunyuan", "local", "trellis"}
+VALID_ENGINES = {"space", "hunyuan", "local", "trellis", "hunyuan-space"}
 
 
 @app.get("/health")
@@ -249,8 +259,21 @@ def health() -> dict:
     }
 
 
+async def _save_upload(upload: UploadFile, task_dir: Path, name: str) -> Path:
+    suffix = ".png" if (upload.filename or "").lower().endswith(".png") else ".jpg"
+    path = task_dir / f"{name}{suffix}"
+    path.write_bytes(await upload.read())
+    return path
+
+
 @app.post("/tasks")
-async def create_task(image: UploadFile, engine: str = Form("")) -> dict:
+async def create_task(
+    image: UploadFile,
+    engine: str = Form(""),
+    image_back: UploadFile | None = None,
+    image_left: UploadFile | None = None,
+    image_right: UploadFile | None = None,
+) -> dict:
     requested = engine or os.environ.get("STATUE_MODE", "space")
     if requested not in VALID_ENGINES:
         raise HTTPException(status_code=400, detail=f"unknown engine '{requested}'")
@@ -266,14 +289,17 @@ async def create_task(image: UploadFile, engine: str = Form("")) -> dict:
         task_id = uuid.uuid4().hex[:12]
         task_dir = WORK_DIR / task_id
         task_dir.mkdir(parents=True)
-        suffix = ".png" if (image.filename or "").lower().endswith(".png") else ".jpg"
-        image_path = task_dir / f"input{suffix}"
-        image_path.write_bytes(await image.read())
+        image_path = await _save_upload(image, task_dir, "input")
+        extra_paths = []
+        for name, upload in (("back", image_back), ("left", image_left), ("right", image_right)):
+            if upload is not None:
+                extra_paths.append(str(await _save_upload(upload, task_dir, name)))
         tasks[task_id] = {
             "status": "queued",
             "created_at": time.time(),
             "detail": "queued",
             "engine": requested,
+            "extra_images": extra_paths,
         }
     thread = threading.Thread(
         target=run_generation, args=(task_id, image_path, task_dir / "statue"), daemon=True

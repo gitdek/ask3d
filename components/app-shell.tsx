@@ -290,16 +290,30 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
           "The statue service is not running. Start it in a terminal:  uv run statue-service/server.py",
         );
       }
-      if (!health.engines?.[statueEngine]) {
+      const engineReady =
+        statueEngine === "hunyuan" ? health.engines?.hunyuan : health.engines?.space;
+      if (!engineReady) {
         throw new Error(
-          statueEngine === "space"
-            ? "The cloud engine needs the trellis-mac venv + a Hugging Face login (see statue-service README)."
-            : "The local engine is not set up — see the hunyuan-mlx section of the statue-service README.",
+          statueEngine === "hunyuan"
+            ? "The local engine is not set up — see the hunyuan-mlx section of the statue-service README."
+            : "Cloud engines need the trellis-mac venv + a Hugging Face login (see statue-service README).",
         );
       }
       if (health.busy) throw new Error("The statue service is already generating a model.");
 
-      const taskId = await createStatueTask(asset.file, statueEngine);
+      // Multi-photo engine: send every attached photo in chip order
+      // (front, back, left, right), starting from the clicked one.
+      const images =
+        statueEngine === "hunyuan-space"
+          ? [
+              asset.file,
+              ...uploadsRef.current
+                .filter((u) => u.kind === "image" && u.path !== path && u.file)
+                .map((u) => u.file!)
+                .slice(0, 3),
+            ]
+          : [asset.file];
+      const taskId = await createStatueTask(images, statueEngine);
       let modelFormat: "glb" | "obj" | "stl" = "glb";
       for (;;) {
         await sleep(STATUE_POLL_MS);
@@ -408,6 +422,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
           >
             <option value="hunyuan">statues: local · unlimited</option>
             <option value="space">statues: cloud · best, ~2/day</option>
+            <option value="hunyuan-space">statues: cloud · multi-photo</option>
           </select>
           <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-400">
             {providerLabel}
