@@ -388,10 +388,11 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       }
       if (health.busy) throw new Error("The statue service is already generating a model.");
 
-      // Multi-photo engine: send every attached photo in chip order
-      // (front, back, left, right), starting from the clicked one.
+      // Multi-photo engine: send every attached photo in chip order,
+      // starting from the clicked one. Slot order is Hunyuan-canonical
+      // (front, left, back, right) — see createStatueTask.
       const images =
-        statueEngine === "hunyuan-space"
+        statueEngine === "hunyuan-space" || statueEngine === "hunyuan"
           ? [
               asset.file,
               ...uploadsRef.current
@@ -467,7 +468,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
             title="Which engine generates photo statues"
             className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300 focus:outline-none"
           >
-            <option value="hunyuan">statues: local · unlimited</option>
+            <option value="hunyuan">statues: local · unlimited · 1–4 photos</option>
             <option value="space">statues: cloud · best, ~2/day</option>
             <option value="hunyuan-space">statues: cloud · multi-photo</option>
           </select>

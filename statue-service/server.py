@@ -149,6 +149,8 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
     #   "hunyuan" / "local": Hunyuan3D-2.1 via the native MLX port —
     #     unlimited, ~2 min/statue, near-Space quality. Needs a rembg
     #     cutout pre-step (the port does no background removal itself).
+    #     Extra photos (back/left/right) switch to token-concat multiview
+    #     conditioning — markedly better body mass/depth than one photo.
     #   "trellis": legacy trellis-mac on-device — erratic quality, kept
     #     for experiments only.
     mode = task.get("engine") or os.environ.get("STATUE_MODE", "space")
@@ -172,26 +174,48 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
             *task.get("extra_images", []),
         ]
     elif mode in ("hunyuan", "local"):
-        task["detail"] = "removing background…"
-        cutout_path = image_path.with_name("cutout.png")
-        pre = subprocess.run(
-            [str(HUNYUAN_PYTHON), str(SERVICE_DIR / "cutout.py"), str(image_path), str(cutout_path)],
-            cwd=HUNYUAN_DIR, capture_output=True, text=True, timeout=300,
-        )
-        if pre.returncode != 0 or not cutout_path.exists():
-            task["status"] = "failed"
-            task["error"] = f"background removal failed: {pre.stderr.strip()[-200:]}"
-            return
-        task["detail"] = "generating with Hunyuan3D-2.1 (MLX, octree 512)…"
+        # views: primary photo is "front"; extras carry their view in the
+        # file stem (back/left/right, set by _save_upload). Multi-photo uses
+        # the token-concat MV runner (see hunyuan_mv.py); STATUE_MV=0
+        # disables it and falls back to front-photo-only.
+        views = {"front": image_path}
+        if os.environ.get("STATUE_MV", "1") != "0":
+            for extra in task.get("extra_images", []):
+                views[Path(extra).stem] = Path(extra)
+        cutouts = {}
+        for view, path in views.items():
+            task["detail"] = f"removing background ({view})…"
+            cutout_path = image_path.with_name(f"cutout-{view}.png")
+            pre = subprocess.run(
+                [str(HUNYUAN_PYTHON), str(SERVICE_DIR / "cutout.py"), str(path), str(cutout_path)],
+                cwd=HUNYUAN_DIR, capture_output=True, text=True, timeout=300,
+            )
+            if pre.returncode != 0 or not cutout_path.exists():
+                task["status"] = "failed"
+                task["error"] = f"background removal failed ({view}): {pre.stderr.strip()[-200:]}"
+                return
+            cutouts[view] = cutout_path
         cwd = HUNYUAN_DIR
-        cmd = [
-            str(HUNYUAN_PYTHON),
-            str(SERVICE_DIR / "hunyuan_generate.py"),
-            str(cutout_path),
-            str(out_base.with_suffix(".glb")),
-            os.environ.get("STATUE_HY_STEPS", "50"),
-            os.environ.get("STATUE_HY_OCTREE", "512"),
-        ]
+        if len(cutouts) > 1:
+            task["detail"] = f"generating with Hunyuan3D-2.1 (MLX, {len(cutouts)} photos, octree 512)…"
+            cmd = [
+                str(HUNYUAN_PYTHON),
+                str(SERVICE_DIR / "hunyuan_generate_mv.py"),
+                str(out_base.with_suffix(".glb")),
+                *(f"{view}={path}" for view, path in cutouts.items()),
+                "--steps", os.environ.get("STATUE_HY_STEPS", "50"),
+                "--octree", os.environ.get("STATUE_HY_OCTREE", "512"),
+            ]
+        else:
+            task["detail"] = "generating with Hunyuan3D-2.1 (MLX, octree 512)…"
+            cmd = [
+                str(HUNYUAN_PYTHON),
+                str(SERVICE_DIR / "hunyuan_generate.py"),
+                str(cutouts["front"]),
+                str(out_base.with_suffix(".glb")),
+                os.environ.get("STATUE_HY_STEPS", "50"),
+                os.environ.get("STATUE_HY_OCTREE", "512"),
+            ]
     else:
         # 32 sampler steps by default: the port's approximated compute paths
         # need more steps to converge than the upstream default of 12 —

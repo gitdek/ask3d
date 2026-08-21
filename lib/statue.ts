@@ -29,14 +29,16 @@ export async function statueHealth(): Promise<StatueHealth | null> {
 }
 
 /**
- * Start a statue task. `images` order matters for multi-photo engines:
- * front, back, left, right (max 4; extras beyond the first are only used
- * by multi-photo capable engines).
+ * Start a statue task. `images` order matters for multi-photo engines and
+ * follows Hunyuan's canonical view order: front, left, back, right (max 4;
+ * extras beyond the first are only used by multi-photo capable engines).
+ * With two photos the second lands in `left` — the right guess for the
+ * common front-plus-profile pair.
  */
 export async function createStatueTask(images: File[], engine: StatueEngine): Promise<string> {
   const form = new FormData();
   form.append("image", images[0], images[0].name);
-  const slots = ["image_back", "image_left", "image_right"];
+  const slots = ["image_left", "image_back", "image_right"];
   images.slice(1, 4).forEach((file, i) => form.append(slots[i], file, file.name));
   form.append("engine", engine);
   const res = await fetch(`${SERVICE_URL}/tasks`, { method: "POST", body: form });
