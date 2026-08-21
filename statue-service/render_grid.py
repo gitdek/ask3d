@@ -1,7 +1,10 @@
 """Grid render: N meshes (rows) x 4 yaw angles (columns), shared shading
 with compare_render.py. For A/B judging of statue geometry.
 
-Usage: python render_grid.py out.png "label1=mesh1.glb" "label2=mesh2.glb" ...
+Usage: python render_grid.py [--zup] out.png "label1=mesh1.glb" ...
+
+Meshes are assumed glTF Y-up (the raw generator output). Pass --zup for
+already-upright Z-up meshes (e.g. repair.py's printable STLs).
 """
 
 import sys
@@ -38,8 +41,13 @@ def load_welded(path: str) -> trimesh.Trimesh:
 
 
 def main() -> int:
-    out_path = sys.argv[1]
-    rows = [a.split("=", 1) for a in sys.argv[2:]]
+    args = sys.argv[1:]
+    zup = "--zup" in args
+    if zup:
+        args.remove("--zup")
+    axes = [0, 1, 2] if zup else [0, 2, 1]
+    out_path = args[0]
+    rows = [a.split("=", 1) for a in args[1:]]
     fig = plt.figure(figsize=(4 * len(YAWS), 4.3 * len(rows)), dpi=100, facecolor="#26282b")
     light = np.array([0.3, 0.5, 0.85])
     light = light / np.linalg.norm(light)
@@ -63,7 +71,7 @@ def main() -> int:
             # painter's sort along the view direction for correct occlusion
             vd = np.array([np.sin(a), -np.cos(a), 0.2])
             order = np.argsort(tris.mean(axis=1) @ vd)
-            pc = Poly3DCollection(tris[order][:, :, [0, 2, 1]], facecolors=colors[order],
+            pc = Poly3DCollection(tris[order][:, :, axes], facecolors=colors[order],
                                   edgecolors="none")
             ax.add_collection3d(pc)
             ax.set_xlim(-radius, radius); ax.set_ylim(-radius, radius); ax.set_zlim(-radius, radius)

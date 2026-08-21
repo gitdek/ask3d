@@ -93,7 +93,21 @@ statue on an M-series Mac, near-watertight output, quality within
 striking distance of paid services (A/B-tested: `octree 512 / 50 steps`
 is the sweet spot — set via `STATUE_HY_OCTREE` / `STATUE_HY_STEPS`). A
 rembg cutout pre-step runs automatically — the port does no background
-removal itself and reconstructs backgrounds verbatim without it. `STATUE_MODE=local` uses
+removal itself and reconstructs backgrounds verbatim without it.
+
+The local engine also does **multi-photo statues** (attach 2–4 photos;
+extra views land in front/left/back/right order): extra photos switch it
+to token-concat multiview conditioning (`hunyuan_generate_mv.py`), which
+A/B-decisively fixes the body mass and depth a single front photo forces
+the model to hallucinate. Honest caveat: no true multiview weights exist
+for Hunyuan3D-2.1 (Tencent's `Hunyuan3D-2mv` is a different 2.0-era
+architecture), so this concatenates all views' DINO tokens without view
+identity — the faithful MV recipe (sincos view embeddings) makes the
+single-view checkpoint denoise to an empty SDF and is kept behind
+`--view-embed` for future MV-trained weights. Consequences: the output's
+compass orientation is arbitrary (harmless — repair fixes upright), and
+contradictory views blur rather than override each other. Disable with
+`STATUE_MV=0`. `STATUE_MODE=local` uses
 [trellis-mac](https://github.com/shivampkumar/trellis-mac) on-device
 (vendored under `statue-service/trellis-mac/`, gitignored) — offline and
 unlimited, but its output is markedly blobbier than the full pipeline:
