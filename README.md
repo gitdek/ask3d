@@ -92,7 +92,12 @@ the port's preprocessing is fine (verified — clean subject cutout), but
 its replaced compute stages (padded SDPA attention, pure-Python mesh
 extraction, disabled hole filling) deterministically degrade geometry,
 and its GLBs sit in the input photo's camera frame rather than glTF
-Y-up. Watch the port's upstream for improvements before trusting it.
+Y-up. Results are erratically subject-dependent: at the upstream default
+of 12 sampler steps thin radial subjects fragment entirely while chunky
+subjects come out blobby-but-coherent; at 32 steps (`STATUE_STEPS`, the
+default here) thin subjects converge but chunky subjects can collapse
+into hollow shells. No setting wins across subjects — treat local mode
+as experimental and watch the port's upstream before trusting it.
 
 One-time setup (the env is created by `bash setup.sh`; already done if
 `statue-service/trellis-mac/.venv` exists), plus HuggingFace access for
