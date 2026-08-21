@@ -82,12 +82,17 @@ A **statue** button on photo chips generates a true 3D model from the
 photo using Microsoft's TRELLIS.2-4B. The sidecar's default mode
 (`STATUE_MODE=space`) runs the **full pipeline on Hugging Face's free
 ZeroGPU** via the `microsoft/TRELLIS.2` Space — ~40s of GPU per statue,
-roughly 4–6 statues/day on a free account's quota, dramatically better
-output than the local port. `STATUE_MODE=local` uses
+about 2 statues/day on a free account's quota (each pipeline stage
+reserves 120s against the ~5-minute daily allowance), dramatically
+better output than the local port. `STATUE_MODE=local` uses
 [trellis-mac](https://github.com/shivampkumar/trellis-mac) on-device
-(vendored under `statue-service/trellis-mac/`, gitignored) — offline but
-currently produces poor results: the port's background-removal stage is
-broken, so it reconstructs the photo's background along with the subject.
+(vendored under `statue-service/trellis-mac/`, gitignored) — offline and
+unlimited, but its output is markedly blobbier than the full pipeline:
+the port's preprocessing is fine (verified — clean subject cutout), but
+its replaced compute stages (padded SDPA attention, pure-Python mesh
+extraction, disabled hole filling) deterministically degrade geometry,
+and its GLBs sit in the input photo's camera frame rather than glTF
+Y-up. Watch the port's upstream for improvements before trusting it.
 
 One-time setup (the env is created by `bash setup.sh`; already done if
 `statue-service/trellis-mac/.venv` exists), plus HuggingFace access for
