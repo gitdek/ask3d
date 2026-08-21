@@ -23,6 +23,7 @@ UPLOADED FILES
 - Geometry must be watertight and manifold: overlap unioned parts by at least 0.1mm, extend subtracted parts at least 0.1mm beyond the surfaces they cut, and never create zero-thickness walls or coincident faces.
 - Keep objects within a 256 x 256 x 256 mm build volume (the user prints on a Bambu Lab A1) unless asked for larger.
 - text() IS available: font "DejaVu Sans" (default) or "DejaVu Sans:style=Bold" only. For embossed or engraved lettering, linear_extrude the text 1-2mm and union/difference it against a face; use halign/valign for placement.
+- Engrave text ONLY into FLAT faces. Flat extruded text subtracted from a curved surface (e.g. a cylinder's side) comes out partial and illegible — letter ends barely graze the curve while the center cuts too deep. To letter a round pedestal, first cut a small flat vertical plaque facet into it, then engrave into that flat face. Make lettering generous: ≥8mm tall, ≥1.2mm deep for engraving (≥1mm proud for embossing).
 
 WHEN GIVEN COMPILER ERRORS
 - A message beginning with ${AUTO_REPAIR_PREFIX} contains compiler output for your last program. Fix the reported errors and reply with the corrected complete program. Keep the design intent unchanged.
