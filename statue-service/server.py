@@ -31,6 +31,8 @@ from fastapi.responses import FileResponse, Response
 SERVICE_DIR = Path(__file__).resolve().parent
 TRELLIS_DIR = SERVICE_DIR / "trellis-mac"
 TRELLIS_PYTHON = TRELLIS_DIR / ".venv" / "bin" / "python"
+HUNYUAN_DIR = SERVICE_DIR / "hunyuan-mlx"
+HUNYUAN_PYTHON = HUNYUAN_DIR / ".venv" / "bin" / "python"
 MOCK = os.environ.get("STATUE_MOCK") == "1"
 PORT = int(os.environ.get("STATUE_PORT", "8765"))
 WORK_DIR = Path(tempfile.gettempdir()) / "ask3d-statue"
@@ -141,17 +143,44 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
         task["status"] = "succeeded"
         return
 
-    # "space" (default): full TRELLIS.2 pipeline on the free HF ZeroGPU Space
-    # (~5 GPU-min/day on a free account, ~40s per statue; needs `hf auth login`).
-    # "local": trellis-mac on this machine — currently produces poor results
-    # because its background-removal stage is broken; use only offline.
-    if os.environ.get("STATUE_MODE", "space") == "space":
+    # Modes:
+    #   "space" (default): full TRELLIS.2 on the free HF ZeroGPU Space
+    #     (~2 statues/day free quota, ~40s GPU each; needs `hf auth login`).
+    #   "hunyuan" / "local": Hunyuan3D-2.1 via the native MLX port —
+    #     unlimited, ~2 min/statue, near-Space quality. Needs a rembg
+    #     cutout pre-step (the port does no background removal itself).
+    #   "trellis": legacy trellis-mac on-device — erratic quality, kept
+    #     for experiments only.
+    mode = os.environ.get("STATUE_MODE", "space")
+    cwd = TRELLIS_DIR
+    if mode == "space":
         task["detail"] = "generating on HF ZeroGPU (full TRELLIS.2)…"
         cmd = [
             str(TRELLIS_PYTHON),
             str(SERVICE_DIR / "space_generate.py"),
             str(image_path),
             str(out_base.parent),
+        ]
+    elif mode in ("hunyuan", "local"):
+        task["detail"] = "removing background…"
+        cutout_path = image_path.with_name("cutout.png")
+        pre = subprocess.run(
+            [str(HUNYUAN_PYTHON), str(SERVICE_DIR / "cutout.py"), str(image_path), str(cutout_path)],
+            cwd=HUNYUAN_DIR, capture_output=True, text=True, timeout=300,
+        )
+        if pre.returncode != 0 or not cutout_path.exists():
+            task["status"] = "failed"
+            task["error"] = f"background removal failed: {pre.stderr.strip()[-200:]}"
+            return
+        task["detail"] = "generating with Hunyuan3D-2.1 (MLX, octree 512)…"
+        cwd = HUNYUAN_DIR
+        cmd = [
+            str(HUNYUAN_PYTHON),
+            str(SERVICE_DIR / "hunyuan_generate.py"),
+            str(cutout_path),
+            str(out_base.with_suffix(".glb")),
+            os.environ.get("STATUE_HY_STEPS", "50"),
+            os.environ.get("STATUE_HY_OCTREE", "512"),
         ]
     else:
         # 32 sampler steps by default: the port's approximated compute paths
@@ -171,7 +200,7 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
         ]
     try:
         proc = subprocess.Popen(
-            cmd, cwd=TRELLIS_DIR, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
         )
         task["pid"] = proc.pid
         for line in proc.stdout or []:
@@ -205,10 +234,13 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
 
 @app.get("/health")
 def health() -> dict:
+    mode = os.environ.get("STATUE_MODE", "space")
+    ready = HUNYUAN_PYTHON.exists() if mode in ("hunyuan", "local") else TRELLIS_PYTHON.exists()
     return {
         "ok": True,
         "mock": MOCK,
-        "model_ready": MOCK or TRELLIS_PYTHON.exists(),
+        "mode": mode,
+        "model_ready": MOCK or ready,
         "busy": busy_task() is not None,
     }
 
