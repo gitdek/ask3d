@@ -170,8 +170,8 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
             str(TRELLIS_PYTHON),
             str(SERVICE_DIR / "hunyuan_space_generate.py"),
             str(out_base.parent),
-            str(image_path),
-            *task.get("extra_images", []),
+            f"front={image_path}",
+            *(f"{Path(p).stem}={p}" for p in task.get("extra_images", [])),
         ]
     elif mode in ("hunyuan", "local"):
         # views: primary photo is "front"; extras carry their view in the
