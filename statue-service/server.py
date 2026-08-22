@@ -247,7 +247,9 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
             str(out_base),
         ]
     try:
-        for attempt in range(2):
+        # Up to 3 attempts: hard photos card on ~half of all seeds, so one
+        # re-roll still fails a quarter of tasks.
+        for attempt in range(3):
             proc = subprocess.Popen(
                 cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
             )
@@ -263,7 +265,7 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
             # collapsed the subject into a sheet. One re-roll with fresh
             # dice usually recovers (validated: seed-dependent, not
             # subject-dependent).
-            if proc.returncode == 3 and cmd_for_seed is not None and attempt == 0:
+            if proc.returncode == 3 and cmd_for_seed is not None and attempt < 2:
                 seed = random.randrange(1_000_000)
                 task["seed"] = seed
                 task["detail"] = f"flat output detected — re-rolling seed ({seed})…"

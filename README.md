@@ -95,6 +95,14 @@ is the sweet spot — set via `STATUE_HY_OCTREE` / `STATUE_HY_STEPS`). A
 rembg cutout pre-step runs automatically — the port does no background
 removal itself and reconstructs backgrounds verbatim without it.
 
+Every task rolls a fresh random seed (`STATUE_HY_SEED` pins it; the task
+detail logs it). This matters: hard photos are seed roulette — the same
+image can yield a clean statue, a garbled head, or collapse entirely
+into a flat card depending on the noise draw. The generator detects the
+flat-card failure (min/max bounding extent ratio < 0.05) and the sidecar
+automatically re-rolls up to twice, so a retry means new dice rather
+than the same failure reproduced.
+
 The local engine also does **multi-photo statues** (attach 2–4 photos;
 extra views land in front/left/back/right order): extra photos switch it
 to token-concat multiview conditioning (`hunyuan_generate_mv.py`), which
