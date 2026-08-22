@@ -27,11 +27,15 @@ from hunyuan_mv import MultiViewEncoderProxy, sort_views
 
 def main() -> int:
     args = sys.argv[1:]
-    steps, octree, guidance = 50, 512, 7.5
+    steps, octree, guidance, seed = 50, 512, 7.5, None
     add_view_embed = False
     if "--guidance" in args:
         i = args.index("--guidance")
         guidance = float(args[i + 1])
+        del args[i : i + 2]
+    if "--seed" in args:
+        i = args.index("--seed")
+        seed = int(args[i + 1])
         del args[i : i + 2]
     if "--view-embed" in args:
         add_view_embed = True
@@ -64,16 +68,24 @@ def main() -> int:
     original_encoder = pipe.image_encoder
     pipe.image_encoder = MultiViewEncoderProxy(original_encoder, view_idxs, add_view_embed=add_view_embed)
     try:
-        mesh = pipe(stacked, num_inference_steps=steps, guidance_scale=guidance, octree_resolution=octree)
+        mesh = pipe(
+            stacked, num_inference_steps=steps, guidance_scale=guidance,
+            octree_resolution=octree, seed=seed,
+        )
     finally:
         pipe.image_encoder = original_encoder
     print(
         f"[{time.time()-t0:6.0f}s] shape generated (mv x{len(paths)}, steps={steps}, "
-        f"octree={octree}, cfg={guidance}, view_embed={add_view_embed})",
+        f"octree={octree}, cfg={guidance}, seed={seed}, view_embed={add_view_embed})",
         flush=True,
     )
     mesh.export(out_path)
     print(f"[{time.time()-t0:6.0f}s] exported {out_path}", flush=True)
+    # Same flat-card guard as hunyuan_generate.py: exit 3 → sidecar re-rolls.
+    extents = sorted(float(e) for e in mesh.extents)
+    if extents[2] > 0 and extents[0] / extents[2] < 0.05:
+        print(f"flat-card output detected (extents {extents}) — try another seed", flush=True)
+        return 3
     return 0
 
 

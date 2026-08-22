@@ -15,6 +15,7 @@ Run:  uv run statue-service/server.py          (real mode; needs trellis-mac set
 import base64
 import json
 import os
+import random
 import struct
 import subprocess
 import tempfile
@@ -155,6 +156,7 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
     #     for experiments only.
     mode = task.get("engine") or os.environ.get("STATUE_MODE", "space")
     cwd = TRELLIS_DIR
+    cmd_for_seed = None  # set by engines that support seed re-rolls
     if mode == "space":
         task["detail"] = "generating on HF ZeroGPU (full TRELLIS.2)…"
         cmd = [
@@ -196,26 +198,38 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
                 return
             cutouts[view] = cutout_path
         cwd = HUNYUAN_DIR
-        if len(cutouts) > 1:
-            task["detail"] = f"generating with Hunyuan3D-2.1 (MLX, {len(cutouts)} photos, octree 512)…"
-            cmd = [
-                str(HUNYUAN_PYTHON),
-                str(SERVICE_DIR / "hunyuan_generate_mv.py"),
-                str(out_base.with_suffix(".glb")),
-                *(f"{view}={path}" for view, path in cutouts.items()),
-                "--steps", os.environ.get("STATUE_HY_STEPS", "50"),
-                "--octree", os.environ.get("STATUE_HY_OCTREE", "512"),
-            ]
-        else:
-            task["detail"] = "generating with Hunyuan3D-2.1 (MLX, octree 512)…"
-            cmd = [
+        # A fresh seed per task: retries of a hard photo should roll new
+        # dice, not reproduce the same bad head. STATUE_HY_SEED pins the
+        # first attempt; the seed is logged in the task detail either way.
+        seed = int(os.environ.get("STATUE_HY_SEED") or random.randrange(1_000_000))
+        task["seed"] = seed
+
+        def build_hunyuan_cmd(seed: int) -> list:
+            if len(cutouts) > 1:
+                return [
+                    str(HUNYUAN_PYTHON),
+                    str(SERVICE_DIR / "hunyuan_generate_mv.py"),
+                    str(out_base.with_suffix(".glb")),
+                    *(f"{view}={path}" for view, path in cutouts.items()),
+                    "--steps", os.environ.get("STATUE_HY_STEPS", "50"),
+                    "--octree", os.environ.get("STATUE_HY_OCTREE", "512"),
+                    "--seed", str(seed),
+                ]
+            return [
                 str(HUNYUAN_PYTHON),
                 str(SERVICE_DIR / "hunyuan_generate.py"),
                 str(cutouts["front"]),
                 str(out_base.with_suffix(".glb")),
                 os.environ.get("STATUE_HY_STEPS", "50"),
                 os.environ.get("STATUE_HY_OCTREE", "512"),
+                "7.5",
+                str(seed),
             ]
+
+        cmd_for_seed = build_hunyuan_cmd
+        cmd = build_hunyuan_cmd(seed)
+        photos = f"{len(cutouts)} photos, " if len(cutouts) > 1 else ""
+        task["detail"] = f"generating with Hunyuan3D-2.1 (MLX, {photos}octree 512, seed {seed})…"
     else:
         # 32 sampler steps by default: the port's approximated compute paths
         # need more steps to converge than the upstream default of 12 —
@@ -233,17 +247,29 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
             str(out_base),
         ]
     try:
-        proc = subprocess.Popen(
-            cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-        )
-        task["pid"] = proc.pid
-        for line in proc.stdout or []:
-            line = line.rstrip()
-            if line:
-                task["detail"] = line[-200:]
-                task.setdefault("log", []).append(line)
-                task["log"] = task["log"][-50:]
-        proc.wait()
+        for attempt in range(2):
+            proc = subprocess.Popen(
+                cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            )
+            task["pid"] = proc.pid
+            for line in proc.stdout or []:
+                line = line.rstrip()
+                if line:
+                    task["detail"] = line[-200:]
+                    task.setdefault("log", []).append(line)
+                    task["log"] = task["log"][-50:]
+            proc.wait()
+            # Exit code 3 = the generator's flat-card guard: the seed
+            # collapsed the subject into a sheet. One re-roll with fresh
+            # dice usually recovers (validated: seed-dependent, not
+            # subject-dependent).
+            if proc.returncode == 3 and cmd_for_seed is not None and attempt == 0:
+                seed = random.randrange(1_000_000)
+                task["seed"] = seed
+                task["detail"] = f"flat output detected — re-rolling seed ({seed})…"
+                cmd = cmd_for_seed(seed)
+                continue
+            break
         if proc.returncode != 0:
             task["status"] = "failed"
             task["error"] = f"generator exited with code {proc.returncode}: " + "\n".join(
