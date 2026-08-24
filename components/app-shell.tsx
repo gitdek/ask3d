@@ -20,8 +20,18 @@ import {
   statueHealth,
   type StatueEngine,
 } from "@/lib/statue";
+import {
+  clearHistory,
+  deleteHistoryItem,
+  getHistoryBytes,
+  listHistory,
+  makeImageThumb,
+  saveHistoryItem,
+  type HistoryMeta,
+} from "@/lib/history";
 import ChatPanel from "./chat-panel";
 import { isAutoRepairMessage, uiMessageText } from "./chat-message";
+import HistoryPanel from "./history-panel";
 import ViewerPanel, { type ViewerError } from "./viewer-panel";
 import type { PillState } from "./status-pill";
 
@@ -88,6 +98,28 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [statueProgress, setStatueProgress] = useState<StatueProgress | null>(null);
   const [statueEngine, setStatueEngine] = useState<StatueEngine>("hunyuan");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyItems, setHistoryItems] = useState<HistoryMeta[]>([]);
+  const nameHintRef = useRef("model");
+
+  const refreshHistory = useCallback(async () => {
+    try {
+      setHistoryItems(await listHistory());
+    } catch {
+      // IndexedDB unavailable — the library just shows empty
+    }
+  }, []);
+
+  // Persist to the library, best-effort: quota or private-mode failures
+  // must never break the action that triggered the save.
+  const captureHistory = useCallback(
+    (item: Omit<HistoryMeta, "id" | "createdAt" | "size">, bytes: ArrayBuffer) => {
+      void saveHistoryItem(item, bytes)
+        .then(refreshHistory)
+        .catch((error) => console.warn("library save failed:", error));
+    },
+    [refreshHistory],
+  );
   const statueRunningRef = useRef(false);
   // The sidecar task behind the model currently in the viewer — recorded so
   // "Clear" can dismiss it and reload-adoption won't resurrect it.
@@ -179,7 +211,13 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     repairAttemptsRef.current = 0;
     setRepairAttempt(0);
     pendingRepairRef.current = null;
-  }, [result]);
+    // Refinements of the same request upsert one library entry (named by
+    // the first user message), so iteration keeps the final version only.
+    captureHistory(
+      { kind: "compiled", name: `${slugify(nameHintRef.current)}.stl`, mime: "model/stl" },
+      result.stl,
+    );
+  }, [result, captureHistory]);
 
   // Compile failure → auto-repair (code faults) or surface directly:
   // timeouts mean the model is too heavy, environment failures mean the
@@ -259,20 +297,38 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     [cancel, sendMessage],
   );
 
-  const handleAttach = useCallback(async (files: File[]) => {
-    setUploadError(null);
-    for (const file of files) {
-      try {
-        const taken = new Set(uploadsRef.current.map((u) => u.path));
-        const asset = await processUpload(file, taken);
-        uploadsRef.current = [...uploadsRef.current, asset];
-        unannouncedRef.current.add(asset.path);
-        setUploads(uploadsRef.current);
-      } catch (error) {
-        setUploadError(error instanceof Error ? error.message : String(error));
+  const handleAttach = useCallback(
+    async (files: File[], captureToLibrary = true) => {
+      setUploadError(null);
+      for (const file of files) {
+        try {
+          const taken = new Set(uploadsRef.current.map((u) => u.path));
+          const asset = await processUpload(file, taken);
+          uploadsRef.current = [...uploadsRef.current, asset];
+          unannouncedRef.current.add(asset.path);
+          setUploads(uploadsRef.current);
+          if (captureToLibrary) {
+            // Best-effort from here on: the chip is committed, so a failed
+            // library snapshot must not report the attach as failed.
+            try {
+              const bytes = await file.arrayBuffer();
+              const thumb =
+                asset.kind === "image" ? (await makeImageThumb(file)) ?? undefined : undefined;
+              captureHistory(
+                { kind: asset.kind, name: file.name, mime: file.type || "", thumb },
+                bytes,
+              );
+            } catch (error) {
+              console.warn("library snapshot failed:", error);
+            }
+          }
+        } catch (error) {
+          setUploadError(error instanceof Error ? error.message : String(error));
+        }
       }
-    }
-  }, []);
+    },
+    [captureHistory],
+  );
 
   const handleRemoveUpload = useCallback((path: string) => {
     uploadsRef.current = uploadsRef.current.filter((u) => u.path !== path);
@@ -332,8 +388,12 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       setUploads(uploadsRef.current);
       setViewerError(null);
       setStl(statueStl);
+      captureHistory(
+        { kind: "statue", name: `${baseName}-statue.stl`, mime: "model/stl", dims },
+        statueStl,
+      );
     },
-    [],
+    [captureHistory],
   );
 
   // A statue task keeps running on the sidecar through page reloads —
@@ -374,6 +434,51 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       cancelled = true;
     };
   }, [adoptStatueTask]);
+
+  // Library: restore puts an item back exactly as if freshly attached —
+  // models additionally load straight into the viewer. No re-capture (the
+  // item is already in the library) and no concurrent restores (double
+  // clicks would race handleAttach into duplicate /uploads/ paths).
+  const restoringRef = useRef(false);
+  const handleRestoreHistory = useCallback(
+    async (item: HistoryMeta) => {
+      if (restoringRef.current) return;
+      restoringRef.current = true;
+      setHistoryOpen(false);
+      try {
+        const bytes = await getHistoryBytes(item.id).catch(() => null);
+        if (!bytes) {
+          setUploadError("That library item's data is missing — it may have been evicted.");
+          return;
+        }
+        const isModel = item.kind === "statue" || item.kind === "compiled" || item.kind === "mesh";
+        const name = isModel && !/\.stl$/i.test(item.name) ? `${item.name}.stl` : item.name;
+        await handleAttach([new File([bytes], name, { type: item.mime || undefined })], false);
+        if (isModel) {
+          setViewerError(null);
+          setStl(bytes);
+        }
+      } finally {
+        restoringRef.current = false;
+      }
+    },
+    [handleAttach],
+  );
+
+  const handleDeleteHistory = useCallback(
+    (id: string) => {
+      void deleteHistoryItem(id).then(refreshHistory).catch(() => {});
+    },
+    [refreshHistory],
+  );
+
+  const handleClearHistory = useCallback(() => {
+    void clearHistory().then(refreshHistory).catch(() => {});
+  }, [refreshHistory]);
+
+  useEffect(() => {
+    void refreshHistory();
+  }, [refreshHistory]);
 
   // "Clear" in the viewer: empty it and remember the statue task behind the
   // model so reload-adoption doesn't resurrect it. A generation still in
@@ -482,14 +587,31 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
 
   const firstUserMessage = messages.find((m) => m.role === "user" && !isAutoRepairMessage(m));
   const nameHint = firstUserMessage ? uiMessageText(firstUserMessage) : "model";
+  // Library entries are named by the LATEST request, not the session's
+  // first — otherwise a second unrelated model in the same chat would
+  // upsert-overwrite the first one's entry under the wrong name.
+  const lastUserMessage = messages.findLast((m) => m.role === "user" && !isAutoRepairMessage(m));
+  nameHintRef.current = lastUserMessage ? uiMessageText(lastUserMessage) : "model";
 
   return (
-    <div className="flex h-dvh flex-col bg-neutral-950 text-neutral-100">
+    <div className="relative flex h-dvh flex-col bg-neutral-950 text-neutral-100">
       <header className="flex shrink-0 items-center justify-between border-b border-neutral-800 px-4 py-2">
         <h1 className="text-sm font-bold tracking-widest">
           ask<span className="text-blue-500">3d</span>
         </h1>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((o) => !o)}
+            title="Past photos and models, kept across reloads"
+            className={`rounded px-2 py-0.5 text-xs transition ${
+              historyOpen
+                ? "bg-neutral-600 text-white"
+                : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+            }`}
+          >
+            Library{historyItems.length > 0 && ` · ${historyItems.length}`}
+          </button>
           <select
             value={statueEngine}
             onChange={(e) => setStatueEngine(e.target.value as StatueEngine)}
@@ -505,6 +627,15 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
           </span>
         </div>
       </header>
+      {historyOpen && (
+        <HistoryPanel
+          items={historyItems}
+          onRestore={handleRestoreHistory}
+          onDelete={handleDeleteHistory}
+          onClearAll={handleClearHistory}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
       <main className="flex min-h-0 flex-1 flex-col-reverse md:grid md:grid-cols-[minmax(360px,40%)_1fr]">
         <div className="min-h-0 flex-1 md:h-full">
           <ChatPanel
