@@ -28,6 +28,7 @@ import type { PillState } from "./status-pill";
 const MAX_REPAIR_ATTEMPTS = 2;
 const STATUE_TARGET_MAX_DIM_MM = 80;
 const STATUE_POLL_MS = 4000;
+const DISMISSED_STATUE_TASK_KEY = "ask3d:dismissed-statue-task";
 
 export interface StatueProgress {
   uploadPath: string;
@@ -88,6 +89,9 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   const [statueProgress, setStatueProgress] = useState<StatueProgress | null>(null);
   const [statueEngine, setStatueEngine] = useState<StatueEngine>("hunyuan");
   const statueRunningRef = useRef(false);
+  // The sidecar task behind the model currently in the viewer — recorded so
+  // "Clear" can dismiss it and reload-adoption won't resurrect it.
+  const lastStatueTaskIdRef = useRef<string | null>(null);
   const uploadsRef = useRef<UploadedAsset[]>([]);
   // Paths added since the last send — their descriptions (and image parts)
   // ride along on the next message, once.
@@ -281,6 +285,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   // adopted (post-reload) tasks.
   const adoptStatueTask = useCallback(
     async (taskId: string, baseName: string, chipPath: string | null) => {
+      lastStatueTaskIdRef.current = taskId;
       let modelFormat: "glb" | "obj" | "stl" = "glb";
       for (;;) {
         await sleep(STATUE_POLL_MS);
@@ -338,6 +343,14 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     (async () => {
       const latest = await fetchLatestStatueTask();
       if (cancelled || !latest || statueRunningRef.current) return;
+      // A task the user explicitly cleared stays gone across reloads.
+      let dismissed: string | null = null;
+      try {
+        dismissed = localStorage.getItem(DISMISSED_STATUE_TASK_KEY);
+      } catch {
+        // localStorage unavailable (private mode) — adoption just re-runs
+      }
+      if (latest.id === dismissed) return;
       const active = latest.status === "queued" || latest.status === "running";
       const fresh = latest.status === "succeeded" && latest.age_seconds < 600;
       if (!active && !fresh) return;
@@ -361,6 +374,21 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       cancelled = true;
     };
   }, [adoptStatueTask]);
+
+  // "Clear" in the viewer: empty it and remember the statue task behind the
+  // model so reload-adoption doesn't resurrect it. A generation still in
+  // flight is unaffected — it delivers (and re-arms adoption) when done.
+  const handleClearModel = useCallback(() => {
+    setStl(null);
+    setViewerError(null);
+    if (lastStatueTaskIdRef.current) {
+      try {
+        localStorage.setItem(DISMISSED_STATUE_TASK_KEY, lastStatueTaskIdRef.current);
+      } catch {
+        // localStorage unavailable — clear still works for this session
+      }
+    }
+  }, []);
 
   // Photo → local TRELLIS.2 sidecar → GLB → printable STL → preview + a new
   // mesh upload the chat can build around via import().
@@ -500,6 +528,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
             viewerError={viewerError}
             nameHint={nameHint}
             onDownload3mf={() => stl && handleDownload3mf(nameHint, stl)}
+            onClear={handleClearModel}
           />
         </div>
       </main>

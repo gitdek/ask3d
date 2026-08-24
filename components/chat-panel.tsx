@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import type { UIMessage } from "ai";
 import type { UploadedAsset } from "@/lib/uploads";
 import type { StatueProgress } from "./app-shell";
@@ -64,8 +64,14 @@ export default function ChatPanel({
   onMakeStatue,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
+  const [dragActive, setDragActive] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Enter/leave fire for every child crossed; a depth counter keeps the
+  // overlay stable until the drag actually exits the panel.
+  const dragDepthRef = useRef(0);
+
+  const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes("Files");
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -79,7 +85,41 @@ export default function ChatPanel({
   };
 
   return (
-    <div className="flex h-full flex-col border-r border-neutral-800">
+    <div
+      className="relative flex h-full flex-col border-r border-neutral-800"
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepthRef.current += 1;
+        setDragActive(true);
+      }}
+      onDragOver={(e) => {
+        if (hasFiles(e)) e.preventDefault(); // required to allow the drop
+      }}
+      onDragLeave={(e) => {
+        if (!hasFiles(e)) return;
+        dragDepthRef.current -= 1;
+        if (dragDepthRef.current <= 0) {
+          dragDepthRef.current = 0;
+          setDragActive(false);
+        }
+      }}
+      onDrop={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepthRef.current = 0;
+        setDragActive(false);
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length) onAttach(files);
+      }}
+    >
+      {dragActive && (
+        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-sky-500/70 bg-sky-950/40">
+          <p className="text-sm font-medium text-sky-200">
+            Drop photos, STL, or OpenSCAD files to attach
+          </p>
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {messages.length === 0 && (
           <div className="mt-8 space-y-3 text-center">

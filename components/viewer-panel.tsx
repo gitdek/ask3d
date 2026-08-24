@@ -35,6 +35,8 @@ interface ViewerPanelProps {
   viewerError: ViewerError | null;
   nameHint: string;
   onDownload3mf(): void;
+  /** Empty the viewer and stop reload-adoption from restoring this model. */
+  onClear(): void;
 }
 
 function formatMm(value: number): string {
@@ -47,6 +49,7 @@ export default function ViewerPanel({
   viewerError,
   nameHint,
   onDownload3mf,
+  onClear,
 }: ViewerPanelProps) {
   const [dims, setDims] = useState<ModelDimensions | null>(null);
   const handleDimensions = useCallback((d: ModelDimensions) => setDims(d), []);
@@ -88,6 +91,16 @@ export default function ViewerPanel({
         )}
 
         <div className="flex items-center justify-end gap-2">
+          {stl && (
+            <button
+              type="button"
+              onClick={onClear}
+              title="Clear the viewer — a refresh won't bring this model back"
+              className="pointer-events-auto rounded-lg bg-neutral-800/80 px-4 py-2 text-sm font-medium text-neutral-400 shadow transition hover:bg-neutral-700 hover:text-neutral-200"
+            >
+              Clear
+            </button>
+          )}
           {stl && (
             <button
               type="button"
