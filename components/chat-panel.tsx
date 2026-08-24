@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import type { UIMessage } from "ai";
 import type { UploadedAsset } from "@/lib/uploads";
-import type { StatueProgress } from "./app-shell";
+import type { StatueProgress, Suggestion } from "./app-shell";
 import ChatMessage from "./chat-message";
 
 const EXAMPLE_PROMPTS = [
@@ -48,6 +48,8 @@ interface ChatPanelProps {
   onAttach(files: File[]): void;
   onRemoveUpload(path: string): void;
   onMakeStatue(path: string): void;
+  suggestions: Suggestion[] | null;
+  onSuggestion(s: Suggestion): void;
 }
 
 export default function ChatPanel({
@@ -62,6 +64,8 @@ export default function ChatPanel({
   onAttach,
   onRemoveUpload,
   onMakeStatue,
+  suggestions,
+  onSuggestion,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [dragActive, setDragActive] = useState(false);
@@ -207,6 +211,27 @@ export default function ChatPanel({
             </div>
           )}
           {uploadError && <p className="mt-1 text-xs text-red-400">{uploadError}</p>}
+        </div>
+      )}
+
+      {suggestions && suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 border-t border-neutral-800/60 px-3 py-2">
+          {suggestions.map((s) => (
+            <button
+              key={`${s.action}:${s.label}`}
+              type="button"
+              disabled={busy || statueProgress !== null}
+              onClick={() => onSuggestion(s)}
+              className={`rounded-full border px-3 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                s.action === "statue"
+                  ? "border-purple-700/70 text-purple-300 hover:border-purple-500 hover:text-purple-100"
+                  : "border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-white"
+              }`}
+            >
+              {s.action === "statue" ? "🗿 " : "✨ "}
+              {s.label}
+            </button>
+          ))}
         </div>
       )}
 

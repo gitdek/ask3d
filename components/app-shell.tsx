@@ -40,6 +40,59 @@ const STATUE_TARGET_MAX_DIM_MM = 80;
 const STATUE_POLL_MS = 4000;
 const DISMISSED_STATUE_TASK_KEY = "ask3d:dismissed-statue-task";
 
+export interface Suggestion {
+  label: string;
+  prompt: string;
+  action: "chat" | "statue";
+  /** Upload the suggestion refers to (statue actions run on it). */
+  path: string;
+}
+
+/** Instant generic suggestions shown while the model looks at the photo. */
+function staticSuggestions(asset: UploadedAsset): Suggestion[] {
+  if (asset.kind === "image") {
+    return [
+      { label: "Make a 3D statue of this", prompt: "", action: "statue", path: asset.path },
+      {
+        label: "Relief plaque of this photo",
+        prompt: "a relief plaque of this photo, 100mm wide, with a hanging hole",
+        action: "chat",
+        path: asset.path,
+      },
+      {
+        label: "Lithophane night-light panel",
+        prompt: "a lithophane panel of this photo, 90mm wide, in a simple stand",
+        action: "chat",
+        path: asset.path,
+      },
+    ];
+  }
+  if (asset.kind === "mesh") {
+    return [
+      {
+        label: "Mount it on a pedestal",
+        prompt: "mount the uploaded model on a round pedestal, 15mm tall, with a smooth chamfer",
+        action: "chat",
+        path: asset.path,
+      },
+      {
+        label: "Scale it to 60mm",
+        prompt: "scale the uploaded model so its largest dimension is 60mm and center it on the plate",
+        action: "chat",
+        path: asset.path,
+      },
+    ];
+  }
+  return [
+    {
+      label: "Improve this design",
+      prompt: "review the uploaded OpenSCAD file and rebuild it cleaner and more printable",
+      action: "chat",
+      path: asset.path,
+    },
+  ];
+}
+
 export interface StatueProgress {
   uploadPath: string;
   phase: "starting" | "generating" | "converting";
@@ -100,6 +153,10 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   const [statueEngine, setStatueEngine] = useState<StatueEngine>("hunyuan");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState<HistoryMeta[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
+  // Which upload the current suggestions belong to — a newer attachment or
+  // a removal invalidates in-flight suggestion fetches for older ones.
+  const suggestionsPathRef = useRef<string | null>(null);
   const nameHintRef = useRef("model");
 
   const refreshHistory = useCallback(async () => {
@@ -307,6 +364,24 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
           uploadsRef.current = [...uploadsRef.current, asset];
           unannouncedRef.current.add(asset.path);
           setUploads(uploadsRef.current);
+          // Suggestions: instant generic set, then photo-specific ones from
+          // the multimodal model (it sees the actual subject) when they land.
+          suggestionsPathRef.current = asset.path;
+          setSuggestions(staticSuggestions(asset));
+          if (asset.kind === "image" && asset.imageDataUrl) {
+            const forPath = asset.path;
+            void fetch("/api/suggest", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ image: asset.imageDataUrl }),
+            })
+              .then((r) => (r.ok ? r.json() : null))
+              .then((data: { suggestions?: Omit<Suggestion, "path">[] } | null) => {
+                if (!data?.suggestions?.length || suggestionsPathRef.current !== forPath) return;
+                setSuggestions(data.suggestions.slice(0, 3).map((s) => ({ ...s, path: forPath })));
+              })
+              .catch(() => {}); // generic suggestions stay
+          }
           if (captureToLibrary) {
             // Best-effort from here on: the chip is committed, so a failed
             // library snapshot must not report the attach as failed.
@@ -333,6 +408,10 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   const handleRemoveUpload = useCallback((path: string) => {
     uploadsRef.current = uploadsRef.current.filter((u) => u.path !== path);
     unannouncedRef.current.delete(path);
+    if (suggestionsPathRef.current === path) {
+      suggestionsPathRef.current = null;
+      setSuggestions(null);
+    }
     setUploads(uploadsRef.current);
   }, []);
 
@@ -551,6 +630,16 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     }
   }, [statueEngine]);
 
+  const handleSuggestion = useCallback(
+    (s: Suggestion) => {
+      setSuggestions(null);
+      suggestionsPathRef.current = null;
+      if (s.action === "statue") void handleMakeStatue(s.path);
+      else if (s.prompt) handleSend(s.prompt);
+    },
+    [handleMakeStatue, handleSend],
+  );
+
   // Dev-only debug harness: compile arbitrary source from the console and
   // inspect the last failure.
   useEffect(() => {
@@ -650,6 +739,8 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
             onAttach={handleAttach}
             onRemoveUpload={handleRemoveUpload}
             onMakeStatue={handleMakeStatue}
+            suggestions={suggestions}
+            onSuggestion={handleSuggestion}
           />
         </div>
         <div className="min-h-0 flex-1 md:h-full">

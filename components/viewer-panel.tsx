@@ -8,6 +8,7 @@ import type { ScadError } from "@/lib/scad/types";
 import StatusPill from "./status-pill";
 import ErrorPanel from "./error-panel";
 import DownloadButton from "./download-button";
+import DancingPuppy from "./dancing-puppy";
 
 // dynamic(..., { ssr: false }) must live in a client file (throws in Server
 // Components); workers/WebGL don't exist during SSR.
@@ -53,16 +54,36 @@ export default function ViewerPanel({
 }: ViewerPanelProps) {
   const [dims, setDims] = useState<ModelDimensions | null>(null);
   const handleDimensions = useCallback((d: ModelDimensions) => setDims(d), []);
+  const waiting =
+    pillState.kind === "generating" ||
+    pillState.kind === "compiling" ||
+    pillState.kind === "statue";
+  const puppyCaption =
+    pillState.kind === "statue" ? "sculpting your statue…" : "designing your model…";
 
   return (
     <div className="relative h-full min-h-[320px] bg-neutral-950">
       <StlCanvas stl={stl} onDimensions={handleDimensions} />
 
-      {!stl && !viewerError && (
+      {!stl && !viewerError && !waiting && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="max-w-xs text-center text-sm text-neutral-500">
             Describe an object in the chat and it will appear here, ready to print.
           </p>
+        </div>
+      )}
+
+      {/* Long waits get a dancing Ridgeback puppy: centered when the stage
+          is empty, tucked in a corner when a model is already showing. */}
+      {waiting && !viewerError && (
+        <div
+          className={
+            stl
+              ? "pointer-events-none absolute bottom-16 left-4"
+              : "pointer-events-none absolute inset-0 flex items-center justify-center"
+          }
+        >
+          <DancingPuppy small={!!stl} caption={puppyCaption} />
         </div>
       )}
 
