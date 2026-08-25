@@ -39,7 +39,7 @@ describe("stlTo3mf", () => {
     expect(config).toContain('<metadata key="wall_loops" value="4"/>');
     expect(config).toContain('<metadata key="enable_support" value="1"/>');
     expect(config).toContain('<metadata key="support_type" value="tree(auto)"/>');
-    expect(config).toContain('<metadata key="seam_position" value="rear"/>');
+    expect(config).toContain('<metadata key="seam_position" value="back"/>');
     expect(config).toContain('<metadata key="brim_width" value="5"/>');
   });
 });

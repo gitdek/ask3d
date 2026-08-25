@@ -29,7 +29,7 @@ const OBJECT_PRINT_SETTINGS: Record<string, string> = {
   support_type: "tree(auto)",
   brim_type: "outer_only",
   brim_width: "5",
-  seam_position: "rear",
+  seam_position: "back", // Bambu/Orca enum ("rear" is PrusaSlicer's word and gets rejected)
 };
 
 function modelSettingsConfig(title: string): string {
