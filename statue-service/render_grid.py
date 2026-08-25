@@ -25,16 +25,21 @@ except ImportError:
 YAWS = [0, 90, 180, 270]
 
 
+import os
+
+RENDER_MAX_FACES = int(os.environ.get("RENDER_MAX_FACES", "60000"))
+
+
 def load_welded(path: str) -> trimesh.Trimesh:
     loaded = trimesh.load(path, force="mesh")
     mesh = trimesh.Trimesh(
         vertices=np.asarray(loaded.vertices), faces=np.asarray(loaded.faces), process=False
     )
     mesh.merge_vertices(merge_tex=True, merge_norm=True)
-    if fast_simplification is not None and len(mesh.faces) > 60000:
+    if fast_simplification is not None and len(mesh.faces) > RENDER_MAX_FACES:
         v, f = fast_simplification.simplify(
             np.asarray(mesh.vertices, np.float32), np.asarray(mesh.faces, np.int32),
-            target_count=60000,
+            target_count=RENDER_MAX_FACES,
         )
         mesh = trimesh.Trimesh(v, f)
     return mesh
