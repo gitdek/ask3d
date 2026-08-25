@@ -16,7 +16,38 @@ const RELS = `<?xml version="1.0" encoding="UTF-8"?>
 </Relationships>`;
 
 /**
- * Convert a binary STL into a minimal single-object 3MF (millimeter units).
+ * Per-object print settings embedded Bambu Studio-style. Bambu (and Orca)
+ * read Metadata/model_settings.config on project import and apply these as
+ * object overrides — the user's own printer/filament presets stay in
+ * charge of everything else. Other slicers ignore the extra file.
+ * Tuned for statue-style prints; keys are slicer config names.
+ */
+const OBJECT_PRINT_SETTINGS: Record<string, string> = {
+  wall_loops: "4",
+  sparse_infill_density: "15%",
+  enable_support: "1",
+  support_type: "tree(auto)",
+  brim_type: "outer_only",
+  brim_width: "5",
+  seam_position: "rear",
+};
+
+function modelSettingsConfig(title: string): string {
+  const entries = Object.entries(OBJECT_PRINT_SETTINGS)
+    .map(([k, v]) => `  <metadata key="${k}" value="${v}"/>`)
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<config>
+ <object id="1">
+  <metadata key="name" value="${title.replace(/[<>&"]/g, "")}"/>
+${entries}
+ </object>
+</config>`;
+}
+
+/**
+ * Convert a binary STL into a minimal single-object 3MF (millimeter units)
+ * with Bambu-readable per-object print settings.
  * Vertices are deduplicated by exact coordinates — STL stores each triangle
  * independently, 3MF wants an indexed mesh.
  */
@@ -56,6 +87,7 @@ export function stlTo3mf(stl: ArrayBuffer, title: string): Uint8Array {
   const model = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
  <metadata name="Title">${title.replace(/[<>&"]/g, "")}</metadata>
+ <metadata name="Application">BambuStudio-01.00.00.00</metadata>
  <resources>
   <object id="1" type="model">
    <mesh>
@@ -72,6 +104,7 @@ export function stlTo3mf(stl: ArrayBuffer, title: string): Uint8Array {
       "[Content_Types].xml": strToU8(CONTENT_TYPES),
       _rels: { ".rels": strToU8(RELS) },
       "3D": { "3dmodel.model": strToU8(model) },
+      Metadata: { "model_settings.config": strToU8(modelSettingsConfig(title)) },
     },
     { level: 6 },
   );
