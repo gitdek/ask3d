@@ -212,7 +212,7 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
                     str(out_base.with_suffix(".glb")),
                     *(f"{view}={path}" for view, path in cutouts.items()),
                     "--steps", os.environ.get("STATUE_HY_STEPS", "50"),
-                    "--octree", os.environ.get("STATUE_HY_OCTREE", "512"),
+                    "--octree", os.environ.get("STATUE_HY_OCTREE", "1024"),
                     "--seed", str(seed),
                 ]
             return [
@@ -221,7 +221,7 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
                 str(cutouts["front"]),
                 str(out_base.with_suffix(".glb")),
                 os.environ.get("STATUE_HY_STEPS", "50"),
-                os.environ.get("STATUE_HY_OCTREE", "512"),
+                os.environ.get("STATUE_HY_OCTREE", "1024"),
                 "7.5",
                 str(seed),
             ]
@@ -229,7 +229,8 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
         cmd_for_seed = build_hunyuan_cmd
         cmd = build_hunyuan_cmd(seed)
         photos = f"{len(cutouts)} photos, " if len(cutouts) > 1 else ""
-        task["detail"] = f"generating with Hunyuan3D-2.1 (MLX, {photos}octree 512, seed {seed})…"
+        octree = os.environ.get("STATUE_HY_OCTREE", "1024")
+        task["detail"] = f"generating with Hunyuan3D-2.1 (MLX, {photos}octree {octree}, seed {seed})…"
     else:
         # 32 sampler steps by default: the port's approximated compute paths
         # need more steps to converge than the upstream default of 12 —
