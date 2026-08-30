@@ -715,12 +715,16 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   else pillState = { kind: "idle" };
 
   const firstUserMessage = messages.find((m) => m.role === "user" && !isAutoRepairMessage(m));
-  const nameHint = firstUserMessage ? uiMessageText(firstUserMessage) : "model";
+  // Sent messages carry an appended "[attached files]" block — strip it so
+  // filenames and library prompts show only what the user actually typed.
+  const userText = (m: UIMessage | undefined) =>
+    m ? uiMessageText(m).split("\n\n[attached files]")[0].trim() || "model" : "model";
+  const nameHint = userText(firstUserMessage);
   // Library entries are named by the LATEST request, not the session's
   // first — otherwise a second unrelated model in the same chat would
   // upsert-overwrite the first one's entry under the wrong name.
   const lastUserMessage = messages.findLast((m) => m.role === "user" && !isAutoRepairMessage(m));
-  nameHintRef.current = lastUserMessage ? uiMessageText(lastUserMessage) : "model";
+  nameHintRef.current = userText(lastUserMessage);
 
   return (
     <div className="relative flex h-dvh flex-col bg-neutral-950 text-neutral-100">
