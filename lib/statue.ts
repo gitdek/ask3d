@@ -17,6 +17,10 @@ export interface StatueTaskStatus {
   /** "stl" is the repaired path: already watertight, upright, Z-up. */
   model_format: "glb" | "obj" | "stl" | null;
   error: string | null;
+  /** Generation provenance (local engines): how to reproduce this statue. */
+  engine?: string | null;
+  seed?: number | null;
+  octree?: string | null;
 }
 
 export async function statueHealth(): Promise<StatueHealth | null> {

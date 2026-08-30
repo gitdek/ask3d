@@ -35,8 +35,8 @@ start_one() { # name, pidfile, logfile, healthport, healthpath, cmd...
   exit 1
 }
 
-stop_one() { # name, pidfile
-  local name=$1 pidfile=$2
+stop_one() { # name, pidfile, port, healthpath
+  local name=$1 pidfile=$2 port=$3 path=$4
   if [[ -f $pidfile ]]; then
     local pid
     pid=$(cat "$pidfile")
@@ -52,6 +52,12 @@ stop_one() { # name, pidfile
   else
     echo "- $name has no pidfile (started by hand?)"
   fi
+  # Wait for the port to actually free — an immediate re-start would see
+  # the dying process still listening and wrongly skip its own launch.
+  for _ in $(seq 1 20); do
+    port_alive "$port" "$path" || return 0
+    sleep 0.5
+  done
 }
 
 case "${1:-start}" in
@@ -65,8 +71,8 @@ case "${1:-start}" in
     command -v open >/dev/null && open http://localhost:3000
     ;;
   stop)
-    stop_one "web app" "$PID_DIR/web.pid"
-    stop_one "statue sidecar" "$PID_DIR/sidecar.pid"
+    stop_one "web app" "$PID_DIR/web.pid" 3000 /
+    stop_one "statue sidecar" "$PID_DIR/sidecar.pid" 8765 /health
     ;;
   status)
     port_alive 3000 / && echo "✓ web app on :3000" || echo "✗ web app not running"

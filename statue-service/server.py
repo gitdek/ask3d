@@ -230,6 +230,7 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
         cmd = build_hunyuan_cmd(seed)
         photos = f"{len(cutouts)} photos, " if len(cutouts) > 1 else ""
         octree = os.environ.get("STATUE_HY_OCTREE", "1024")
+        task["octree"] = octree
         task["detail"] = f"generating with Hunyuan3D-2.1 (MLX, {photos}octree {octree}, seed {seed})…"
     else:
         # 32 sampler steps by default: the port's approximated compute paths
@@ -390,6 +391,10 @@ def get_task(task_id: str) -> dict:
         "elapsed_seconds": round(elapsed),
         "model_format": task.get("model_format"),
         "error": task.get("error"),
+        # Generation provenance — lets the app record how to reproduce it.
+        "engine": task.get("engine"),
+        "seed": task.get("seed"),
+        "octree": task.get("octree"),
     }
 
 

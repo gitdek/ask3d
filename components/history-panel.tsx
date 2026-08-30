@@ -87,7 +87,13 @@ export default function HistoryPanel({
               <button
                 type="button"
                 onClick={() => onRestore(item)}
-                title={`Restore ${item.name}`}
+                title={
+                  item.prompt
+                    ? `Restore ${item.name}\n\nPrompt: ${item.prompt}`
+                    : item.note
+                      ? `Restore ${item.name}\n\n${item.note}`
+                      : `Restore ${item.name}`
+                }
                 className="flex min-w-0 flex-1 items-center gap-3 text-left"
               >
                 {item.thumb ? (
@@ -111,8 +117,27 @@ export default function HistoryPanel({
                     {item.dims &&
                       ` · ${formatMm(item.dims.x)}×${formatMm(item.dims.y)}×${formatMm(item.dims.z)}mm`}
                   </span>
+                  {(item.prompt || item.note) && (
+                    <span className="block truncate text-[11px] italic text-neutral-600">
+                      {item.prompt ?? item.note}
+                    </span>
+                  )}
                 </span>
               </button>
+              {(item.prompt || item.note) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard
+                      ?.writeText(item.prompt ?? item.note ?? "")
+                      .catch(() => {});
+                  }}
+                  title={item.prompt ? "Copy the prompt that made this" : "Copy generation settings"}
+                  className="shrink-0 rounded px-1.5 text-sm text-neutral-600 opacity-0 transition group-hover:opacity-100 hover:text-sky-300"
+                >
+                  ⧉
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onDelete(item.id)}

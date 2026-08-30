@@ -20,6 +20,12 @@ export interface HistoryMeta {
   thumb?: string;
   /** Printer-mm dimensions (models only). */
   dims?: { x: number; y: number; z: number };
+  /** The chat request that produced this model (compiled only). */
+  prompt?: string;
+  /** The OpenSCAD source that compiled to this model (compiled only). */
+  scad?: string;
+  /** Generation provenance, e.g. "local · seed 98590 · octree 1024" (statues). */
+  note?: string;
 }
 
 const DB_NAME = "ask3d-history";

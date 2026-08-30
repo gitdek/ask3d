@@ -7,6 +7,7 @@ import { useOpenscadCompiler } from "@/hooks/use-openscad-compiler";
 import { downloadModel, slugify } from "@/lib/stl";
 import { stlTo3mf } from "@/lib/threemf";
 import { extractLastScadBlock } from "@/lib/scad/extract";
+import { analyzeStlComponents } from "@/lib/scad/components";
 import { lintScad } from "@/lib/scad/lint";
 import { buildRepairMessage } from "@/lib/ai/system-prompt";
 import type { CompileFile, ScadError } from "@/lib/scad/types";
@@ -260,21 +261,50 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     else compile(code, compileFilesOf(uploadsRef.current));
   }, [status, messages, beginRepairOrFail, compile]);
 
-  // Compile success → show model, reset the repair counter.
+  // Compile success → show model, reset the repair counter. But first, a
+  // geometry sanity check: a difference() that slices clean through a part
+  // compiles fine yet leaves severed fragments floating in the air (they
+  // print as loose debris). Detect that and run it through the same
+  // auto-repair loop as a compile error.
   useEffect(() => {
     if (!result || result.source !== lastCompiledSourceRef.current) return;
-    setStl(result.stl);
+    setStl(result.stl); // show what compiled either way
+    const report = analyzeStlComponents(result.stl);
+    if (report.debrisCount > 0 && repairAttemptsRef.current < MAX_REPAIR_ATTEMPTS) {
+      beginRepairOrFail(
+        result.source,
+        [
+          {
+            message:
+              `The model compiled but has ${report.debrisCount} small disconnected piece(s) floating in the air ` +
+              `(${report.componentCount} separate solids total) — likely a cut that sliced clean through the part, ` +
+              `or a feature positioned without overlap. Every piece must overlap its neighbours by at least 0.2mm ` +
+              `and union into connected geometry. Rewrite the program so the result is connected (or has only ` +
+              `deliberate, plate-touching separate parts).`,
+          },
+        ],
+        [],
+      );
+      return;
+    }
     lastSuccessfulSourceRef.current = result.source;
     repairAttemptsRef.current = 0;
     setRepairAttempt(0);
     pendingRepairRef.current = null;
-    // Refinements of the same request upsert one library entry (named by
-    // the first user message), so iteration keeps the final version only.
+    // Refinements of the same request upsert one library entry, so
+    // iteration keeps the final version — along with the prompt that made
+    // it and the OpenSCAD source it compiled from.
     captureHistory(
-      { kind: "compiled", name: `${slugify(nameHintRef.current)}.stl`, mime: "model/stl" },
+      {
+        kind: "compiled",
+        name: `${slugify(nameHintRef.current)}.stl`,
+        mime: "model/stl",
+        prompt: nameHintRef.current,
+        scad: result.source,
+      },
       result.stl,
     );
-  }, [result, captureHistory]);
+  }, [result, captureHistory, beginRepairOrFail]);
 
   // Compile failure → auto-repair (code faults) or surface directly:
   // timeouts mean the model is too heavy, environment failures mean the
@@ -422,6 +452,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     async (taskId: string, baseName: string, chipPath: string | null) => {
       lastStatueTaskIdRef.current = taskId;
       let modelFormat: "glb" | "obj" | "stl" = "glb";
+      let genNote: string | undefined;
       for (;;) {
         await sleep(STATUE_POLL_MS);
         const s = await pollStatueTask(taskId);
@@ -433,6 +464,15 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
         });
         if (s.status === "succeeded") {
           modelFormat = s.model_format ?? "glb";
+          // Provenance for the library: enough to reproduce this exact statue.
+          genNote =
+            [
+              s.engine,
+              s.seed != null ? `seed ${s.seed}` : null,
+              s.octree ? `octree ${s.octree}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || undefined;
           break;
         }
         if (s.status === "failed") throw new Error(s.error || "generation failed");
@@ -468,7 +508,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       setViewerError(null);
       setStl(statueStl);
       captureHistory(
-        { kind: "statue", name: `${baseName}-statue.stl`, mime: "model/stl", dims },
+        { kind: "statue", name: `${baseName}-statue.stl`, mime: "model/stl", dims, note: genNote },
         statueStl,
       );
     },
