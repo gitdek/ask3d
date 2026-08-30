@@ -184,9 +184,16 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   // The sidecar task behind the model currently in the viewer — recorded so
   // "Clear" can dismiss it and reload-adoption won't resurrect it.
   const lastStatueTaskIdRef = useRef<string | null>(null);
-  // Per-color STLs for multi-color 3MF export (lib/scad/colors.ts) — built
-  // in the background after a color-structured compile succeeds.
+  // Per-color STLs for multi-color 3MF export and tinted preview
+  // (lib/scad/colors.ts) — built in the background after a
+  // color-structured compile succeeds. State drives the viewer; the ref
+  // mirror keeps the download callback dependency-free.
+  const [colorParts, setColorParts] = useState<ColorPart[] | null>(null);
   const colorPartsRef = useRef<ColorPart[] | null>(null);
+  const applyColorParts = useCallback((parts: ColorPart[] | null) => {
+    colorPartsRef.current = parts;
+    setColorParts(parts);
+  }, []);
   const uploadsRef = useRef<UploadedAsset[]>([]);
   // Paths added since the last send — their descriptions (and image parts)
   // ride along on the next message, once.
@@ -297,9 +304,9 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     setRepairAttempt(0);
     pendingRepairRef.current = null;
     // Multi-color: a color-structured program gets its parts re-rendered
-    // one by one in the background; when they're all in, the 3MF button
-    // exports per-color objects the AMS maps to filament slots.
-    colorPartsRef.current = null;
+    // one by one in the background; when they're all in, the viewer tints
+    // them and the 3MF exports per-color objects for AMS mapping.
+    applyColorParts(null);
     const colorPlan = parseColorPlan(result.source);
     if (colorPlan) {
       const src = result.source;
@@ -316,7 +323,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
           }
         }
         if (lastCompiledSourceRef.current === src && parts.length >= 2) {
-          colorPartsRef.current = parts;
+          applyColorParts(parts);
           console.info(`[multi-color] ${parts.length} color parts ready — 3MF will export per-color objects`);
         }
       })();
@@ -543,13 +550,14 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       unannouncedRef.current.add(statuePath);
       setUploads(uploadsRef.current);
       setViewerError(null);
+      applyColorParts(null);
       setStl(statueStl);
       captureHistory(
         { kind: "statue", name: `${baseName}-statue.stl`, mime: "model/stl", dims, note: genNote },
         statueStl,
       );
     },
-    [captureHistory],
+    [captureHistory, applyColorParts],
   );
 
   // A statue task keeps running on the sidecar through page reloads —
@@ -612,6 +620,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
         await handleAttach([new File([bytes], name, { type: item.mime || undefined })], false);
         if (isModel) {
           setViewerError(null);
+          applyColorParts(null);
           setStl(bytes);
         }
       } finally {
@@ -642,7 +651,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   const handleClearModel = useCallback(() => {
     setStl(null);
     setViewerError(null);
-    colorPartsRef.current = null;
+    applyColorParts(null);
     if (lastStatueTaskIdRef.current) {
       try {
         localStorage.setItem(DISMISSED_STATUE_TASK_KEY, lastStatueTaskIdRef.current);
@@ -828,6 +837,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
         <div className="min-h-0 flex-1 md:h-full">
           <ViewerPanel
             stl={stl}
+            colorParts={colorParts}
             pillState={pillState}
             viewerError={viewerError}
             nameHint={nameHint}

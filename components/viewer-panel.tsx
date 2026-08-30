@@ -32,6 +32,8 @@ export interface ViewerError {
 
 interface ViewerPanelProps {
   stl: ArrayBuffer | null;
+  /** Per-color meshes for tinted preview (multi-color exports). */
+  colorParts: { hex: string; stl: ArrayBuffer }[] | null;
   pillState: PillState;
   viewerError: ViewerError | null;
   nameHint: string;
@@ -46,6 +48,7 @@ function formatMm(value: number): string {
 
 export default function ViewerPanel({
   stl,
+  colorParts,
   pillState,
   viewerError,
   nameHint,
@@ -63,7 +66,7 @@ export default function ViewerPanel({
 
   return (
     <div className="relative h-full min-h-[320px] bg-neutral-950">
-      <StlCanvas stl={stl} onDimensions={handleDimensions} />
+      <StlCanvas stl={stl} colorParts={colorParts} onDimensions={handleDimensions} />
 
       {!stl && !viewerError && !waiting && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

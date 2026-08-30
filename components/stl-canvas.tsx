@@ -7,16 +7,21 @@ import StlMesh, { type ModelDimensions } from "./stl-mesh";
 
 interface StlCanvasProps {
   stl: ArrayBuffer | null;
+  /** Per-color meshes (same coordinate frame as `stl`) — rendered tinted
+   *  when present; the fused mesh then turns invisible but keeps reporting
+   *  dimensions and anchoring Bounds/Center. */
+  colorParts?: { hex: string; stl: ArrayBuffer }[] | null;
   onDimensions?: (dims: ModelDimensions) => void;
 }
 
 // 1 three.js unit = 1 mm. Bed grid matches a Bambu Lab A1: 256x256mm,
 // 10mm cells, 50mm sections.
-export default function StlCanvas({ stl, onDimensions }: StlCanvasProps) {
+export default function StlCanvas({ stl, colorParts, onDimensions }: StlCanvasProps) {
   // Bounds fits/clips only on mount and Center measures only on mount —
   // remount the subtree per new buffer so the camera reframes each model.
   const revisionRef = useRef(0);
-  const revision = useMemo(() => ++revisionRef.current, [stl]);
+  const revision = useMemo(() => ++revisionRef.current, [stl, colorParts]);
+  const showParts = !!colorParts && colorParts.length >= 2;
 
   return (
     <Canvas
@@ -38,7 +43,11 @@ export default function StlCanvas({ stl, onDimensions }: StlCanvasProps) {
       {stl && (
         <Bounds key={revision} fit clip observe margin={1.4}>
           <Center top>
-            <StlMesh buffer={stl} onDimensions={onDimensions} />
+            <StlMesh buffer={stl} onDimensions={onDimensions} visible={!showParts} />
+            {showParts &&
+              colorParts!.map((part, i) => (
+                <StlMesh key={i} buffer={part.stl} color={part.hex} />
+              ))}
           </Center>
         </Bounds>
       )}

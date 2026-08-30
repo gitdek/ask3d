@@ -15,6 +15,10 @@ export interface ModelDimensions {
 interface StlMeshProps {
   buffer: ArrayBuffer;
   onDimensions?: (dims: ModelDimensions) => void;
+  /** Material color (defaults to the neutral print-gray). */
+  color?: string;
+  /** Invisible meshes still report dimensions and anchor Bounds/Center. */
+  visible?: boolean;
 }
 
 // Above this, flat shading speckles: triangles go sub-pixel and every pixel
@@ -26,7 +30,7 @@ interface StlMeshProps {
 const SMOOTH_SHADING_TRIANGLE_THRESHOLD = 150_000;
 const CREASE_ANGLE = THREE.MathUtils.degToRad(38);
 
-export default function StlMesh({ buffer, onDimensions }: StlMeshProps) {
+export default function StlMesh({ buffer, onDimensions, color = "#d8dbe0", visible = true }: StlMeshProps) {
   const dimsRef = useRef<ModelDimensions>({ x: 0, y: 0, z: 0 });
   const invalidate = useThree((state) => state.invalidate);
 
@@ -67,8 +71,8 @@ export default function StlMesh({ buffer, onDimensions }: StlMeshProps) {
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   return (
-    <mesh geometry={geometry} castShadow>
-      <meshStandardMaterial color="#d8dbe0" roughness={0.55} metalness={0.1} flatShading={flatShading} />
+    <mesh geometry={geometry} castShadow visible={visible}>
+      <meshStandardMaterial color={color} roughness={0.55} metalness={0.1} flatShading={flatShading} />
     </mesh>
   );
 }

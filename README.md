@@ -181,7 +181,7 @@ gated license; RMBG-2.0 background removal is CC BY-NC (personal use).
 - Multi-color (AMS): ask for colors in chat ("plates midnight blue,
   letters gold") and the model structures the program into per-color
   modules (`// COLORS:` convention, `lib/scad/colors.ts`); the app
-  re-renders each color group in the background and the 3MF button then
+  re-renders each color group in the background, tints the 3D preview per color, and the 3MF button then
   exports one object per color with display colors and extruder
   assignments — Bambu Studio maps them to AMS slots on import. The STL
   download stays single-body.
