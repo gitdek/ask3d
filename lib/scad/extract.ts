@@ -54,7 +54,15 @@ export function extractLastScadBlock(markdown: string): string | null {
 
   const tagged = blocks.filter((b) => SCAD_TAGS.has(b.lang));
   if (tagged.length > 0) {
-    const code = tagged[tagged.length - 1].code.trim();
+    // A mangled reply can shed tiny fragment fences after the real program
+    // (observed: a trailing block containing just "1"). Ignore tagged
+    // blocks that are dwarfed by the largest one, then keep last-wins.
+    const longest = Math.max(...tagged.map((b) => b.code.trim().length));
+    const solid = tagged.filter(
+      (b) => b.code.trim().length >= Math.max(40, longest * 0.25),
+    );
+    const pick = solid.length > 0 ? solid[solid.length - 1] : tagged[tagged.length - 1];
+    const code = pick.code.trim();
     return code.length > 0 ? code : null;
   }
 

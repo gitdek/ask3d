@@ -70,3 +70,18 @@ describe("extractLastScadBlock", () => {
     expect(extractLastScadBlock(md)).toBe("cube(3);");
   });
 });
+
+describe("fragment resistance", () => {
+  it("ignores a tiny trailing fragment fence after the real program", () => {
+    const real = "module a() { cube(10); }\na();\n" + "// filler\n".repeat(10);
+    const md = "Here:\n```openscad\n" + real + "```\nleftover\n```openscad\n1\n```\n";
+    expect(extractLastScadBlock(md)).toContain("module a()");
+  });
+
+  it("still honors last-wins between two substantial programs", () => {
+    const a = "module a() { cube(10); }\na();\n// aaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n";
+    const b = "module b() { sphere(5); }\nb();\n// bbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n";
+    const md = "```openscad\n" + a + "```\ntext\n```openscad\n" + b + "```\n";
+    expect(extractLastScadBlock(md)).toContain("module b()");
+  });
+});

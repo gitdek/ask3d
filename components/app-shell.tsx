@@ -194,6 +194,10 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     colorPartsRef.current = parts;
     setColorParts(parts);
   }, []);
+  // The compile-success effect can re-fire for the same result (dependency
+  // identity churn); the color build must run once per source or each
+  // re-fire would wipe finished parts and relaunch the renders.
+  const colorBuiltForRef = useRef<string | null>(null);
   const uploadsRef = useRef<UploadedAsset[]>([]);
   // Paths added since the last send — their descriptions (and image parts)
   // ride along on the next message, once.
@@ -280,6 +284,23 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   // auto-repair loop as a compile error.
   useEffect(() => {
     if (!result || result.source !== lastCompiledSourceRef.current) return;
+    // Empty output compiles "successfully" when nothing is instantiated at
+    // the top level (e.g. the model left its module calls in a comment or
+    // outside the code fence) — repairable, and worthless to display.
+    if ((result.stl.byteLength - 84) / 50 <= 0) {
+      beginRepairOrFail(
+        result.source,
+        [
+          {
+            message:
+              "The program compiled but produced NO geometry. Make sure the modules are actually " +
+              "instantiated at the top level of the program — as real statements, not inside a comment.",
+          },
+        ],
+        [],
+      );
+      return;
+    }
     setStl(result.stl); // show what compiled either way
     const report = analyzeStlComponents(result.stl);
     if (report.debrisCount > 0 && repairAttemptsRef.current < MAX_REPAIR_ATTEMPTS) {
@@ -305,28 +326,32 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     pendingRepairRef.current = null;
     // Multi-color: a color-structured program gets its parts re-rendered
     // one by one in the background; when they're all in, the viewer tints
-    // them and the 3MF exports per-color objects for AMS mapping.
-    applyColorParts(null);
-    const colorPlan = parseColorPlan(result.source);
-    if (colorPlan) {
-      const src = result.source;
-      void (async () => {
-        const parts: ColorPart[] = [];
-        for (let k = 1; k <= colorPlan.length; k++) {
-          try {
-            const stl = await compileOnce(colorPartSource(src, k), compileFilesOf(uploadsRef.current));
-            if (stl.byteLength >= 84 + 50) {
-              parts.push({ name: colorPlan[k - 1], hex: colorToHex(colorPlan[k - 1]), stl });
+    // them and the 3MF exports per-color objects for AMS mapping. Runs
+    // once per compiled source — effect re-fires must not reset it.
+    if (colorBuiltForRef.current !== result.source) {
+      colorBuiltForRef.current = result.source;
+      applyColorParts(null);
+      const colorPlan = parseColorPlan(result.source);
+      if (colorPlan) {
+        const src = result.source;
+        void (async () => {
+          const parts: ColorPart[] = [];
+          for (let k = 1; k <= colorPlan.length; k++) {
+            try {
+              const stl = await compileOnce(colorPartSource(src, k), compileFilesOf(uploadsRef.current));
+              if (stl.byteLength >= 84 + 50) {
+                parts.push({ name: colorPlan[k - 1], hex: colorToHex(colorPlan[k - 1]), stl });
+              }
+            } catch (error) {
+              console.warn(`[multi-color] part ${k} render failed:`, error);
             }
-          } catch (error) {
-            console.warn(`[multi-color] part ${k} render failed:`, error);
           }
-        }
-        if (lastCompiledSourceRef.current === src && parts.length >= 2) {
-          applyColorParts(parts);
-          console.info(`[multi-color] ${parts.length} color parts ready — 3MF will export per-color objects`);
-        }
-      })();
+          if (lastCompiledSourceRef.current === src && parts.length >= 2) {
+            applyColorParts(parts);
+            console.info(`[multi-color] ${parts.length} color parts ready — 3MF will export per-color objects`);
+          }
+        })();
+      }
     }
     // Refinements of the same request upsert one library entry, so
     // iteration keeps the final version — along with the prompt that made
@@ -732,6 +757,8 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
     const debugWindow = window as unknown as Record<string, unknown>;
+    debugWindow.__ask3dColorParts = () =>
+      colorPartsRef.current?.map((p) => `${p.name}:${p.stl.byteLength}b`) ?? null;
     debugWindow.__ask3dCompile = (source: string, files?: CompileFile[]) => {
       lastCompiledSourceRef.current = source;
       setViewerError(null);
