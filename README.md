@@ -27,6 +27,13 @@ and Anthropic (`AI_PROVIDER=anthropic`, e.g. `AI_MODEL=claude-sonnet-5`).
 Set the matching `*_API_KEY` and restart.
 
 ```bash
+./start.sh      # web app + statue sidecar, opens http://localhost:3000
+./start.sh stop # shut both down (also: status, logs)
+```
+
+Or run the pieces by hand:
+
+```bash
 npm run dev     # http://localhost:3000
 npm test        # unit tests (fence extraction, lint, stderr parsing)
 ```
