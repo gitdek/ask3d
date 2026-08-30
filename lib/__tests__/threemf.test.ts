@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { unzipSync, strFromU8 } from "three/examples/jsm/libs/fflate.module.js";
-import { stlTo3mf } from "../threemf";
+import { stlTo3mf, stlTo3mfMulti } from "../threemf";
 
 /** One-triangle binary STL. */
 function tinyStl(): ArrayBuffer {
@@ -31,6 +31,30 @@ describe("stlTo3mf", () => {
     expect(model).toContain('<triangle v1="0" v2="1" v3="2"/>');
     expect(model).toContain("<metadata name=\"Title\">test model</metadata>");
     expect(model).toContain("BambuStudio");
+  });
+
+  it("exports one object per color with materials and extruder mapping", () => {
+    const multi = unzipSync(
+      stlTo3mfMulti(
+        [
+          { name: "midnight blue", hex: "#1B2A4A", stl: tinyStl() },
+          { name: "gold", hex: "#D4A017", stl: tinyStl() },
+        ],
+        "plaque",
+      ),
+    );
+    const model = strFromU8(multi["3D/3dmodel.model"]);
+    expect(model).toContain('<basematerials id="100">');
+    expect(model).toContain('displaycolor="#D4A017FF"');
+    expect(model).toContain('<object id="1" type="model" pid="100" pindex="0">');
+    expect(model).toContain('<object id="2" type="model" pid="100" pindex="1">');
+    expect(model).toContain('<item objectid="2"/>');
+    const config = strFromU8(multi["Metadata/model_settings.config"]);
+    expect(config).toContain('<object id="1">');
+    expect(config).toContain('<metadata key="extruder" value="1"/>');
+    expect(config).toContain('<object id="2">');
+    expect(config).toContain('<metadata key="extruder" value="2"/>');
+    expect(config).toContain('<metadata key="name" value="gold"/>');
   });
 
   it("embeds per-object print settings keyed to the model object", () => {

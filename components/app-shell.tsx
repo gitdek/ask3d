@@ -5,9 +5,11 @@ import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOpenscadCompiler } from "@/hooks/use-openscad-compiler";
 import { downloadModel, slugify } from "@/lib/stl";
-import { stlTo3mf } from "@/lib/threemf";
+import { stlTo3mf, stlTo3mfMulti, type ColorPart } from "@/lib/threemf";
 import { extractLastScadBlock } from "@/lib/scad/extract";
 import { analyzeStlComponents } from "@/lib/scad/components";
+import { colorPartSource, colorToHex, parseColorPlan } from "@/lib/scad/colors";
+import { compileOnce } from "@/lib/scad/compile-once";
 import { lintScad } from "@/lib/scad/lint";
 import { buildRepairMessage } from "@/lib/ai/system-prompt";
 import type { CompileFile, ScadError } from "@/lib/scad/types";
@@ -182,6 +184,9 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   // The sidecar task behind the model currently in the viewer — recorded so
   // "Clear" can dismiss it and reload-adoption won't resurrect it.
   const lastStatueTaskIdRef = useRef<string | null>(null);
+  // Per-color STLs for multi-color 3MF export (lib/scad/colors.ts) — built
+  // in the background after a color-structured compile succeeds.
+  const colorPartsRef = useRef<ColorPart[] | null>(null);
   const uploadsRef = useRef<UploadedAsset[]>([]);
   // Paths added since the last send — their descriptions (and image parts)
   // ride along on the next message, once.
@@ -291,6 +296,31 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     repairAttemptsRef.current = 0;
     setRepairAttempt(0);
     pendingRepairRef.current = null;
+    // Multi-color: a color-structured program gets its parts re-rendered
+    // one by one in the background; when they're all in, the 3MF button
+    // exports per-color objects the AMS maps to filament slots.
+    colorPartsRef.current = null;
+    const colorPlan = parseColorPlan(result.source);
+    if (colorPlan) {
+      const src = result.source;
+      void (async () => {
+        const parts: ColorPart[] = [];
+        for (let k = 1; k <= colorPlan.length; k++) {
+          try {
+            const stl = await compileOnce(colorPartSource(src, k), compileFilesOf(uploadsRef.current));
+            if (stl.byteLength >= 84 + 50) {
+              parts.push({ name: colorPlan[k - 1], hex: colorToHex(colorPlan[k - 1]), stl });
+            }
+          } catch (error) {
+            console.warn(`[multi-color] part ${k} render failed:`, error);
+          }
+        }
+        if (lastCompiledSourceRef.current === src && parts.length >= 2) {
+          colorPartsRef.current = parts;
+          console.info(`[multi-color] ${parts.length} color parts ready — 3MF will export per-color objects`);
+        }
+      })();
+    }
     // Refinements of the same request upsert one library entry, so
     // iteration keeps the final version — along with the prompt that made
     // it and the OpenSCAD source it compiled from.
@@ -339,11 +369,18 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   }, [failure, beginRepairOrFail, compile]);
 
   // Convert the current preview STL to 3MF (Bambu Studio's native format)
-  // client-side — works for compiled models and statues alike.
+  // client-side — works for compiled models and statues alike. When the
+  // model was color-structured (see lib/scad/colors.ts) and the per-color
+  // parts finished rendering, export one object per color so the AMS can
+  // map filaments automatically.
   const handleDownload3mf = useCallback(
     (nameHint: string, buffer: ArrayBuffer) => {
       try {
-        const threeMf = stlTo3mf(buffer, slugify(nameHint));
+        const parts = colorPartsRef.current;
+        const threeMf =
+          parts && parts.length >= 2
+            ? stlTo3mfMulti(parts, slugify(nameHint))
+            : stlTo3mf(buffer, slugify(nameHint));
         downloadModel(threeMf.buffer as ArrayBuffer, slugify(nameHint), "3mf");
       } catch (err) {
         setUploadError(`3MF export failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -605,6 +642,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   const handleClearModel = useCallback(() => {
     setStl(null);
     setViewerError(null);
+    colorPartsRef.current = null;
     if (lastStatueTaskIdRef.current) {
       try {
         localStorage.setItem(DISMISSED_STATUE_TASK_KEY, lastStatueTaskIdRef.current);

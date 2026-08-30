@@ -175,7 +175,16 @@ gated license; RMBG-2.0 background removal is CC BY-NC (personal use).
 - Exports: binary STL, plus 3MF (Bambu Studio's native format) built
   client-side in `lib/threemf.ts` — the wasm build's own 3MF writer is
   broken (lib3mf signature mismatch), so don't re-enable it without
-  testing.
+  testing. 3MFs embed Bambu per-object print settings; Bambu Studio only
+  reads them via File → Open as a fresh project (drag-import strips
+  foreign config with an "invalid config" note — geometry still loads).
+- Multi-color (AMS): ask for colors in chat ("plates midnight blue,
+  letters gold") and the model structures the program into per-color
+  modules (`// COLORS:` convention, `lib/scad/colors.ts`); the app
+  re-renders each color group in the background and the 3MF button then
+  exports one object per color with display colors and extruder
+  assignments — Bambu Studio maps them to AMS slots on import. The STL
+  download stays single-body.
 - Heavy models hit a 60s compile timeout; the error panel offers a
   one-click retry with a 5-minute limit.
 - Attached photos ride only on the most recent message that has files

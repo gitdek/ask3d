@@ -32,26 +32,26 @@ const OBJECT_PRINT_SETTINGS: Record<string, string> = {
   seam_position: "back", // Bambu/Orca enum ("rear" is PrusaSlicer's word and gets rejected)
 };
 
-function modelSettingsConfig(title: string): string {
-  const entries = Object.entries(OBJECT_PRINT_SETTINGS)
-    .map(([k, v]) => `  <metadata key="${k}" value="${v}"/>`)
+function modelSettingsConfig(objects: { id: number; name: string; extruder?: number }[]): string {
+  const blocks = objects
+    .map((o) => {
+      const entries = [
+        `  <metadata key="name" value="${o.name.replace(/[<>&"]/g, "")}"/>`,
+        ...(o.extruder !== undefined
+          ? [`  <metadata key="extruder" value="${o.extruder}"/>`]
+          : []),
+        ...Object.entries(OBJECT_PRINT_SETTINGS).map(
+          ([k, v]) => `  <metadata key="${k}" value="${v}"/>`,
+        ),
+      ].join("\n");
+      return ` <object id="${o.id}">\n${entries}\n </object>`;
+    })
     .join("\n");
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<config>
- <object id="1">
-  <metadata key="name" value="${title.replace(/[<>&"]/g, "")}"/>
-${entries}
- </object>
-</config>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<config>\n${blocks}\n</config>`;
 }
 
-/**
- * Convert a binary STL into a minimal single-object 3MF (millimeter units)
- * with Bambu-readable per-object print settings.
- * Vertices are deduplicated by exact coordinates — STL stores each triangle
- * independently, 3MF wants an indexed mesh.
- */
-export function stlTo3mf(stl: ArrayBuffer, title: string): Uint8Array {
+/** Indexed <mesh> XML from a binary STL (vertices deduplicated exactly). */
+function meshXml(stl: ArrayBuffer): string {
   const view = new DataView(stl);
   if (stl.byteLength < 84) throw new Error("Not a binary STL (too short)");
   const triangleCount = view.getUint32(80, true);
@@ -60,7 +60,6 @@ export function stlTo3mf(stl: ArrayBuffer, title: string): Uint8Array {
   const vertexIndex = new Map<string, number>();
   const vertices: string[] = [];
   const triangles: string[] = [];
-
   const indexOf = (x: number, y: number, z: number): number => {
     const key = `${x},${y},${z}`;
     let idx = vertexIndex.get(key);
@@ -71,7 +70,6 @@ export function stlTo3mf(stl: ArrayBuffer, title: string): Uint8Array {
     }
     return idx;
   };
-
   for (let t = 0; t < triangleCount; t++) {
     const base = 84 + t * 50 + 12; // skip the facet normal
     const idx: number[] = [];
@@ -83,17 +81,24 @@ export function stlTo3mf(stl: ArrayBuffer, title: string): Uint8Array {
     }
     triangles.push(`<triangle v1="${idx[0]}" v2="${idx[1]}" v3="${idx[2]}"/>`);
   }
+  return `<mesh>\n    <vertices>${vertices.join("")}</vertices>\n    <triangles>${triangles.join("")}</triangles>\n   </mesh>`;
+}
 
+/**
+ * Convert a binary STL into a minimal single-object 3MF (millimeter units)
+ * with Bambu-readable per-object print settings.
+ * Vertices are deduplicated by exact coordinates — STL stores each triangle
+ * independently, 3MF wants an indexed mesh.
+ */
+export function stlTo3mf(stl: ArrayBuffer, title: string): Uint8Array {
+  const safeTitle = title.replace(/[<>&"]/g, "");
   const model = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
- <metadata name="Title">${title.replace(/[<>&"]/g, "")}</metadata>
+ <metadata name="Title">${safeTitle}</metadata>
  <metadata name="Application">BambuStudio-01.00.00.00</metadata>
  <resources>
   <object id="1" type="model">
-   <mesh>
-    <vertices>${vertices.join("")}</vertices>
-    <triangles>${triangles.join("")}</triangles>
-   </mesh>
+   ${meshXml(stl)}
   </object>
  </resources>
  <build><item objectid="1"/></build>
@@ -104,7 +109,63 @@ export function stlTo3mf(stl: ArrayBuffer, title: string): Uint8Array {
       "[Content_Types].xml": strToU8(CONTENT_TYPES),
       _rels: { ".rels": strToU8(RELS) },
       "3D": { "3dmodel.model": strToU8(model) },
-      Metadata: { "model_settings.config": strToU8(modelSettingsConfig(title)) },
+      Metadata: {
+        "model_settings.config": strToU8(modelSettingsConfig([{ id: 1, name: safeTitle }])),
+      },
+    },
+    { level: 6 },
+  );
+}
+
+export interface ColorPart {
+  /** Human color name, e.g. "gold" — becomes the object name in the slicer. */
+  name: string;
+  /** Display color, e.g. "#D4A017" — shown in Bambu's AMS mapping dialog. */
+  hex: string;
+  stl: ArrayBuffer;
+}
+
+/**
+ * Multi-color 3MF: one object per color part (all in place, so they
+ * assemble), a basematerials palette for display colors, and per-object
+ * extruder assignments (1-based) that Bambu Studio maps to AMS slots.
+ */
+export function stlTo3mfMulti(parts: ColorPart[], title: string): Uint8Array {
+  if (parts.length === 0) throw new Error("no color parts");
+  const safeTitle = title.replace(/[<>&"]/g, "");
+  const bases = parts
+    .map((p) => `<base name="${p.name.replace(/[<>&"]/g, "")}" displaycolor="${p.hex}FF"/>`)
+    .join("");
+  const objects = parts
+    .map(
+      (p, i) => `  <object id="${i + 1}" type="model" pid="100" pindex="${i}">
+   ${meshXml(p.stl)}
+  </object>`,
+    )
+    .join("\n");
+  const items = parts.map((_, i) => `<item objectid="${i + 1}"/>`).join("");
+
+  const model = `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02">
+ <metadata name="Title">${safeTitle}</metadata>
+ <metadata name="Application">BambuStudio-01.00.00.00</metadata>
+ <resources>
+  <basematerials id="100">${bases}</basematerials>
+${objects}
+ </resources>
+ <build>${items}</build>
+</model>`;
+
+  return zipSync(
+    {
+      "[Content_Types].xml": strToU8(CONTENT_TYPES),
+      _rels: { ".rels": strToU8(RELS) },
+      "3D": { "3dmodel.model": strToU8(model) },
+      Metadata: {
+        "model_settings.config": strToU8(
+          modelSettingsConfig(parts.map((p, i) => ({ id: i + 1, name: p.name, extruder: i + 1 }))),
+        ),
+      },
     },
     { level: 6 },
   );
