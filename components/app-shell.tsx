@@ -29,6 +29,7 @@ import {
   getHistoryBytes,
   listHistory,
   makeImageThumb,
+  migrateLocalLibrary,
   saveHistoryItem,
   type HistoryMeta,
 } from "@/lib/history";
@@ -667,7 +668,9 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   }, [refreshHistory]);
 
   useEffect(() => {
-    void refreshHistory();
+    // Push any old per-browser library into the shared server store once,
+    // then load the shared list.
+    void migrateLocalLibrary().then(refreshHistory);
   }, [refreshHistory]);
 
   // "Clear" in the viewer: empty it and remember the statue task behind the

@@ -178,6 +178,13 @@ gated license; RMBG-2.0 background removal is CC BY-NC (personal use).
   testing. 3MFs embed Bambu per-object print settings; Bambu Studio only
   reads them via File → Open as a fresh project (drag-import strips
   foreign config with an "invalid config" note — geometry still loads).
+- The Library (header button) is a shared store on the server's disk
+  (`.library/`, gitignored): photos you attach, generated statues, and
+  compiled models are captured with their prompts/provenance and visible
+  from every browser that uses this instance. Old per-browser libraries
+  migrate up automatically on first load. After File -> Open of an
+  exported 3MF in Bambu Studio, glance at the filament slot — project
+  imports can leave it blank, which slices at crawl-speed defaults.
 - Multi-color (AMS): ask for colors in chat ("plates midnight blue,
   letters gold") and the model structures the program into per-color
   modules (`// COLORS:` convention, `lib/scad/colors.ts`); the app

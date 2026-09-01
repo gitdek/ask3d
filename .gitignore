@@ -52,3 +52,4 @@ public/pose*.stl
 public/statue*.stl
 statue-service/hunyuan-mlx/
 .logs/
+.library/
