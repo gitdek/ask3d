@@ -23,7 +23,11 @@ const RELS = `<?xml version="1.0" encoding="UTF-8"?>
  * Tuned for statue-style prints; keys are slicer config names.
  */
 const OBJECT_PRINT_SETTINGS: Record<string, string> = {
-  wall_loops: "4",
+  // 3 walls, not 4: on thin parts extra loops make the whole cross-section
+  // slow solid wall (a 3.2mm divider panel jumped ~2x in print time when
+  // the 4-wall default finally started applying). Statues that want more
+  // shell can be bumped per-object in the slicer.
+  wall_loops: "3",
   sparse_infill_density: "15%",
   enable_support: "1",
   support_type: "tree(auto)",

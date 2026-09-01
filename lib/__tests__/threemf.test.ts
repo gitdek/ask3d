@@ -65,7 +65,7 @@ describe("stlTo3mf", () => {
   it("embeds per-object print settings keyed to the model object", () => {
     const config = strFromU8(files["Metadata/model_settings.config"]);
     expect(config).toContain('<object id="1">');
-    expect(config).toContain('<metadata key="wall_loops" value="4"/>');
+    expect(config).toContain('<metadata key="wall_loops" value="3"/>');
     expect(config).toContain('<metadata key="enable_support" value="1"/>');
     expect(config).toContain('<metadata key="support_type" value="tree(auto)"/>');
     expect(config).toContain('<metadata key="seam_position" value="back"/>');
