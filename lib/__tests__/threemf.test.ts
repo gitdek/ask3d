@@ -20,9 +20,14 @@ describe("stlTo3mf", () => {
     expect(Object.keys(files).filter((k) => !k.endsWith("/")).sort()).toEqual([
       "3D/3dmodel.model",
       "Metadata/model_settings.config",
+      "Metadata/project_settings.config",
       "[Content_Types].xml",
       "_rels/.rels",
     ]);
+    // The gate in Bambu's Plater.cpp accepts configs naming a Bambu printer.
+    expect(strFromU8(files["Metadata/project_settings.config"])).toContain(
+      '"printer_model": "Bambu Lab A1"',
+    );
   });
 
   it("writes an indexed mesh with the title sanitized", () => {

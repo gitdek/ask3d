@@ -32,6 +32,18 @@ const OBJECT_PRINT_SETTINGS: Record<string, string> = {
   seam_position: "back", // Bambu/Orca enum ("rear" is PrusaSlicer's word and gets rejected)
 };
 
+/**
+ * Minimal project config that passes Bambu Studio's validity gate.
+ * Plater.cpp rejects foreign 3MFs ("invalid config, load geometry data
+ * only") unless the config names a Bambu printer_model
+ * (is_bbl_vendor_config) or carries nozzle_diameter (check_project_config).
+ * We declare only printer_model — enough to be accepted, while carrying no
+ * nozzle/process values that could override the user's active presets.
+ */
+const PROJECT_SETTINGS = `{
+  "printer_model": "Bambu Lab A1"
+}`;
+
 function modelSettingsConfig(objects: { id: number; name: string; extruder?: number }[]): string {
   const blocks = objects
     .map((o) => {
@@ -111,6 +123,7 @@ export function stlTo3mf(stl: ArrayBuffer, title: string): Uint8Array {
       "3D": { "3dmodel.model": strToU8(model) },
       Metadata: {
         "model_settings.config": strToU8(modelSettingsConfig([{ id: 1, name: safeTitle }])),
+        "project_settings.config": strToU8(PROJECT_SETTINGS),
       },
     },
     { level: 6 },
@@ -165,6 +178,7 @@ ${objects}
         "model_settings.config": strToU8(
           modelSettingsConfig(parts.map((p, i) => ({ id: i + 1, name: p.name, extruder: i + 1 }))),
         ),
+        "project_settings.config": strToU8(PROJECT_SETTINGS),
       },
     },
     { level: 6 },
