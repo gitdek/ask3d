@@ -1,16 +1,31 @@
 #!/usr/bin/env bash
 # ask3d launcher: web app (Next.js, :3000) + statue sidecar (FastAPI, :8765).
 #
-#   ./start.sh          start anything not already running, then open the app
-#   ./start.sh stop     stop what start.sh started
-#   ./start.sh status   show what's running
-#   ./start.sh logs     tail both logs
+#   ./start.sh            start anything not already running, then open the app
+#   ./start.sh --lan      same, but the web app also listens on your LAN address
+#                         (other devices on your Wi-Fi can use it — statues too)
+#   ./start.sh stop       stop what start.sh started, running generators included
+#   ./start.sh status     show what's running
+#   ./start.sh logs       tail both logs
 set -euo pipefail
 cd "$(dirname "$0")"
 
 LOG_DIR=.logs
 PID_DIR=.logs
 mkdir -p "$LOG_DIR"
+
+MODE=start
+LAN=0
+for arg in "$@"; do
+  case "$arg" in
+    --lan) LAN=1 ;;
+    start | stop | status | logs) MODE=$arg ;;
+    *)
+      echo "usage: ./start.sh [start [--lan]|stop|status|logs]" >&2
+      exit 2
+      ;;
+  esac
+done
 
 port_alive() { curl -s -m 1 -o /dev/null "http://127.0.0.1:$1$2" 2>/dev/null; }
 
@@ -22,8 +37,15 @@ start_one() { # name, pidfile, logfile, healthport, healthpath, cmd...
     return
   fi
   echo "… starting $name (log: $logfile)"
-  nohup "$@" >>"$logfile" 2>&1 &
-  echo $! >"$pidfile"
+  # One previous log is kept per service instead of growing forever.
+  [[ -f $logfile ]] && mv -f "$logfile" "$logfile.1"
+  # Job control (set -m) gives the child its own process group, so stop can
+  # take down the whole tree — uv → python → a running generator — at once.
+  (
+    set -m
+    nohup "$@" >"$logfile" 2>&1 &
+    echo $! >"$pidfile"
+  )
   for _ in $(seq 1 60); do
     if port_alive "$port" "$path"; then
       echo "✓ $name up on :$port"
@@ -38,12 +60,17 @@ start_one() { # name, pidfile, logfile, healthport, healthpath, cmd...
 stop_one() { # name, pidfile, port, healthpath
   local name=$1 pidfile=$2 port=$3 path=$4
   if [[ -f $pidfile ]]; then
-    local pid
+    local pid pgid
     pid=$(cat "$pidfile")
     if kill -0 "$pid" 2>/dev/null; then
-      # Kill the whole process group when possible (uv/npm spawn children).
-      kill "$pid" 2>/dev/null || true
-      pkill -P "$pid" 2>/dev/null || true
+      pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || true)
+      if [[ -n $pgid && $pgid != "$(ps -o pgid= -p $$ | tr -d ' ')" ]]; then
+        kill -- "-$pgid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+      else
+        # Started by an older launcher without its own group.
+        kill "$pid" 2>/dev/null || true
+        pkill -P "$pid" 2>/dev/null || true
+      fi
       echo "✓ stopped $name (pid $pid)"
     else
       echo "- $name not running (stale pidfile)"
@@ -58,16 +85,26 @@ stop_one() { # name, pidfile, port, healthpath
     port_alive "$port" "$path" || return 0
     sleep 0.5
   done
+  echo "! $name is still answering on :$port after 10s (started by hand? stop it yourself)" >&2
 }
 
-case "${1:-start}" in
+lan_ip() { ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true; }
+
+case "$MODE" in
   start)
     start_one "statue sidecar" "$PID_DIR/sidecar.pid" "$LOG_DIR/sidecar.log" 8765 /health \
       uv run "$PWD/statue-service/server.py"
-    start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / \
-      npm run dev
+    if [[ $LAN == 1 ]]; then
+      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / npm run dev:lan
+    else
+      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / npm run dev
+    fi
     echo
     echo "ask3d ready → http://localhost:3000"
+    if [[ $LAN == 1 ]]; then
+      ip=$(lan_ip)
+      [[ -n $ip ]] && echo "on your network → http://$ip:3000"
+    fi
     command -v open >/dev/null && open http://localhost:3000
     ;;
   stop)
@@ -80,9 +117,5 @@ case "${1:-start}" in
     ;;
   logs)
     tail -n 40 -f "$LOG_DIR/web.log" "$LOG_DIR/sidecar.log"
-    ;;
-  *)
-    echo "usage: ./start.sh [start|stop|status|logs]" >&2
-    exit 2
     ;;
 esac

@@ -1,4 +1,6 @@
-const SERVICE_URL = process.env.NEXT_PUBLIC_STATUE_SERVICE_URL ?? "http://127.0.0.1:8765";
+// Same-origin path proxied to the sidecar by next.config.ts (see there for
+// why); the override exists for pointing at a sidecar on another machine.
+const SERVICE_URL = process.env.NEXT_PUBLIC_STATUE_SERVICE_URL ?? "/statue";
 
 export type StatueEngine = "hunyuan" | "space" | "hunyuan-space";
 
@@ -21,6 +23,8 @@ export interface StatueTaskStatus {
   engine?: string | null;
   seed?: number | null;
   octree?: string | null;
+  /** Set when the watertight-repair step failed and the raw mesh was served instead. */
+  repair_warning?: string | null;
 }
 
 export async function statueHealth(): Promise<StatueHealth | null> {

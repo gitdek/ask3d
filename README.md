@@ -27,18 +27,26 @@ and Anthropic (`AI_PROVIDER=anthropic`, e.g. `AI_MODEL=claude-sonnet-5`).
 Set the matching `*_API_KEY` and restart.
 
 ```bash
-./start.sh      # web app + statue sidecar, opens http://localhost:3000
-./start.sh stop # shut both down (also: status, logs)
+./start.sh        # web app + statue sidecar, opens http://localhost:3000
+./start.sh --lan  # also reachable from other devices on your Wi-Fi
+./start.sh stop   # shut both down, running generators included (also: status, logs)
 ```
 
 Or run the pieces by hand:
 
 ```bash
-npm run dev     # http://localhost:3000
-npm test        # unit tests (fence extraction, lint, stderr parsing)
+npm run dev     # http://localhost:3000 (loopback only; npm run dev:lan for the LAN)
+npm test        # unit tests (fence extraction, lint, stderr parsing, 3MF)
 ```
 
 Requires Node >= 22.
+
+There is no login: anyone who can reach the server can spend your API key
+and use the library, so the dev server listens on loopback unless you ask
+for `--lan`. Either way, `proxy.ts` refuses browser requests that didn't
+come from the app's own page (cross-site POSTs from another tab, DNS
+rebinding), and the statue sidecar is reached only through the app's
+`/statue/*` proxy, never directly.
 
 ## How it works
 
@@ -157,7 +165,13 @@ uv run statue-service/server.py
 ```
 
 (`STATUE_MOCK=1 uv run statue-service/server.py` serves an instant fake
-model for testing the pipeline without the weights.)
+model for testing the pipeline without the weights.) The browser talks
+to it through the app's own origin (`/statue/*`, rewritten in
+`next.config.ts`; `STATUE_SERVICE_URL` points elsewhere), so a phone on
+the LAN can make statues too. A generation that runs past
+`STATUE_TASK_TIMEOUT` (default 60 minutes) is killed rather than holding
+the sidecar's single slot forever, and any crash inside the worker ends
+the task as failed instead of leaving it "running".
 
 The generated GLB is converted in-browser to a print-ready binary STL
 (Y-up→Z-up, scaled to 80mm max dimension, floored to Z=0), previewed
@@ -188,10 +202,17 @@ gated license; RMBG-2.0 background removal is CC BY-NC (personal use).
 - Multi-color (AMS): ask for colors in chat ("plates midnight blue,
   letters gold") and the model structures the program into per-color
   modules (`// COLORS:` convention, `lib/scad/colors.ts`); the app
-  re-renders each color group in the background, tints the 3D preview per color, and the 3MF button then
-  exports one object per color with display colors and extruder
-  assignments — Bambu Studio maps them to AMS slots on import. The STL
-  download stays single-body.
+  re-renders each color group in the background (the 3MF button reads
+  "3MF · colors…" until they're in, then "3MF · N colors"), tints the 3D
+  preview per color, and the 3MF then exports one object per color with
+  display colors and extruder assignments — Bambu Studio maps them to
+  AMS slots on import. The STL download stays single-body.
+- A successful compile can still carry OpenSCAD warnings (geometry
+  silently dropped, a non-manifold shape); they show as a "⚠ N compiler
+  warnings" chip in the viewer — hover for the lines.
+- Floating-fragment detection (a cut that severed a piece into mid-air)
+  triggers an automatic repair round; separate parts standing on the
+  plate are treated as deliberate multi-part prints and left alone.
 - Heavy models hit a 60s compile timeout; the error panel offers a
   one-click retry with a 5-minute limit.
 - Attached photos ride only on the most recent message that has files
