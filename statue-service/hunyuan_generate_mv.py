@@ -12,6 +12,7 @@ recipe's view embeddings make it denoise to an empty SDF. --view-embed
 restores the faithful DinoImageEncoderMV semantics for future MV weights.
 """
 
+import os
 import sys
 import time
 
@@ -21,7 +22,8 @@ import mlx.core as mx
 
 from hy3dshape.hy3dshape.pipeline_mlx import ShapePipeline
 
-sys.path.insert(0, "/Users/dek/projects/ask3d/statue-service")
+# hunyuan_mv.py lives next to this file; cwd is the hunyuan-mlx checkout.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hunyuan_mv import MultiViewEncoderProxy, sort_views
 
 

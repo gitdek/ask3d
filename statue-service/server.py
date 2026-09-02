@@ -25,7 +25,7 @@ import uuid
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, Form, HTTPException, UploadFile
+from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 
@@ -116,25 +116,53 @@ def repair_model(task: dict, glb_path: Path) -> None:
     Falls back to the unrepaired GLB if repair fails."""
     task["detail"] = "repairing mesh (watertight + upright)…"
     repaired_path = glb_path.with_name("statue-repaired.stl")
-    proc = subprocess.run(
-        [str(TRELLIS_PYTHON), str(SERVICE_DIR / "repair.py"), str(glb_path), str(repaired_path)],
-        capture_output=True,
-        text=True,
-        timeout=600,
-    )
-    if proc.returncode == 0 and repaired_path.exists() and repaired_path.stat().st_size > 0:
+    summary = ""
+    try:
+        proc = subprocess.run(
+            [str(TRELLIS_PYTHON), str(SERVICE_DIR / "repair.py"), str(glb_path), str(repaired_path)],
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+        failure = None if proc.returncode == 0 else (proc.stderr.strip()[-150:] or f"exit {proc.returncode}")
+        summary = (proc.stdout.strip().splitlines() or ["repaired"])[-1]
+    except subprocess.TimeoutExpired:
+        failure = "repair timed out after 600s"
+    except OSError as exc:  # e.g. the trellis venv is missing
+        failure = str(exc)
+    if failure is None and repaired_path.exists() and repaired_path.stat().st_size > 0:
         task["model_path"] = str(repaired_path)
         task["model_format"] = "stl"
-        task["detail"] = (proc.stdout.strip().splitlines() or ["repaired"])[-1]
+        task["detail"] = summary
     else:
-        task["detail"] = f"mesh repair failed, serving unrepaired mesh: {proc.stderr.strip()[-150:]}"
+        # The statue still ships, but the app tells the user it may not be
+        # watertight — a transient detail string used to be the only trace.
+        task["repair_warning"] = failure or "repair produced no output"
+        task["detail"] = f"mesh repair failed, serving unrepaired mesh: {task['repair_warning']}"
+
+
+GENERATION_TIMEOUT_S = int(os.environ.get("STATUE_TASK_TIMEOUT", "3600"))
 
 
 def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
+    """Thread entry point. Whatever happens inside, the task ends in a
+    terminal state: one stuck at "running" keeps the sidecar "busy" for
+    every later request and the app polling forever."""
     task = tasks[task_id]
     task["status"] = "running"
     task["started_at"] = time.time()
+    try:
+        _generate(task, image_path, out_base)
+    except Exception as exc:  # noqa: BLE001 — task boundary, report everything
+        task["status"] = "failed"
+        task["error"] = f"{type(exc).__name__}: {exc}"
+    finally:
+        if task["status"] == "running":
+            task["status"] = "failed"
+            task.setdefault("error", "generation ended without a result")
 
+
+def _generate(task: dict, image_path: Path, out_base: Path) -> None:
     if MOCK:
         time.sleep(3)
         glb_path = out_base.with_suffix(".glb")
@@ -248,14 +276,25 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
             "--output",
             str(out_base),
         ]
-    try:
-        # Up to 3 attempts: hard photos card on ~half of all seeds, so one
-        # re-roll still fails a quarter of tasks.
-        for attempt in range(3):
-            proc = subprocess.Popen(
-                cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-            )
-            task["pid"] = proc.pid
+    # Up to 3 attempts: hard photos card on ~half of all seeds, so one
+    # re-roll still fails a quarter of tasks.
+    for attempt in range(3):
+        proc = subprocess.Popen(
+            cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
+        task["pid"] = proc.pid
+        # A wedged generator (stalled weight download, hung Metal kernel)
+        # would otherwise hold the sidecar's single slot forever.
+        timed_out = threading.Event()
+
+        def _kill(p=proc, flag=timed_out):
+            flag.set()
+            p.kill()
+
+        watchdog = threading.Timer(GENERATION_TIMEOUT_S, _kill)
+        watchdog.daemon = True
+        watchdog.start()
+        try:
             for line in proc.stdout or []:
                 line = line.rstrip()
                 if line:
@@ -263,37 +302,43 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
                     task.setdefault("log", []).append(line)
                     task["log"] = task["log"][-50:]
             proc.wait()
-            # Exit code 3 = the generator's flat-card guard: the seed
-            # collapsed the subject into a sheet. One re-roll with fresh
-            # dice usually recovers (validated: seed-dependent, not
-            # subject-dependent).
-            if proc.returncode == 3 and cmd_for_seed is not None and attempt < 2:
-                seed = random.randrange(1_000_000)
-                task["seed"] = seed
-                task["detail"] = f"flat output detected — re-rolling seed ({seed})…"
-                cmd = cmd_for_seed(seed)
-                continue
-            break
-        if proc.returncode != 0:
+        finally:
+            watchdog.cancel()
+        if timed_out.is_set():
             task["status"] = "failed"
-            task["error"] = f"generator exited with code {proc.returncode}: " + "\n".join(
-                task.get("log", [])[-8:]
+            task["error"] = (
+                f"generator ran for more than {GENERATION_TIMEOUT_S // 60} minutes and was "
+                "killed (STATUE_TASK_TIMEOUT raises the limit)"
             )
             return
-        for ext, fmt in ((".glb", "glb"), (".obj", "obj")):
-            candidate = out_base.with_suffix(ext)
-            if candidate.exists() and candidate.stat().st_size > 0:
-                task["model_path"] = str(candidate)
-                task["model_format"] = fmt
-                if fmt == "glb":
-                    repair_model(task, candidate)
-                task["status"] = "succeeded"
-                return
+        # Exit code 3 = the generator's flat-card guard: the seed
+        # collapsed the subject into a sheet. One re-roll with fresh
+        # dice usually recovers (validated: seed-dependent, not
+        # subject-dependent).
+        if proc.returncode == 3 and cmd_for_seed is not None and attempt < 2:
+            seed = random.randrange(1_000_000)
+            task["seed"] = seed
+            task["detail"] = f"flat output detected — re-rolling seed ({seed})…"
+            cmd = cmd_for_seed(seed)
+            continue
+        break
+    if proc.returncode != 0:
         task["status"] = "failed"
-        task["error"] = "generator finished but produced no .glb/.obj output"
-    except Exception as exc:  # noqa: BLE001 — task boundary, report everything
-        task["status"] = "failed"
-        task["error"] = str(exc)
+        task["error"] = f"generator exited with code {proc.returncode}: " + "\n".join(
+            task.get("log", [])[-8:]
+        )
+        return
+    for ext, fmt in ((".glb", "glb"), (".obj", "obj")):
+        candidate = out_base.with_suffix(ext)
+        if candidate.exists() and candidate.stat().st_size > 0:
+            task["model_path"] = str(candidate)
+            task["model_format"] = fmt
+            if fmt == "glb":
+                repair_model(task, candidate)
+            task["status"] = "succeeded"
+            return
+    task["status"] = "failed"
+    task["error"] = "generator finished but produced no .glb/.obj output"
 
 
 VALID_ENGINES = {"space", "hunyuan", "local", "trellis", "hunyuan-space"}
@@ -322,15 +367,25 @@ async def _save_upload(upload: UploadFile, task_dir: Path, name: str) -> Path:
 
 @app.post("/tasks")
 async def create_task(
+    request: Request,
     image: UploadFile,
     engine: str = Form(""),
     image_back: UploadFile | None = None,
     image_left: UploadFile | None = None,
     image_right: UploadFile | None = None,
 ) -> dict:
+    # Browsers label cross-site requests, and CORS only stops a foreign page
+    # from READING the reply — without this, any web page could start
+    # generations on this machine. The app's /statue proxy arrives same-origin.
+    site = request.headers.get("sec-fetch-site")
+    if site not in (None, "same-origin", "none"):
+        raise HTTPException(status_code=403, detail="cross-site request refused")
     requested = engine or os.environ.get("STATUE_MODE", "space")
     if requested not in VALID_ENGINES:
         raise HTTPException(status_code=400, detail=f"unknown engine '{requested}'")
+    # Reserve the single generation slot under the lock, but receive the
+    # uploads outside it: awaiting while holding a threading.Lock parks the
+    # event loop for any second request, which then can never be released.
     with tasks_lock:
         if busy_task() is not None:
             raise HTTPException(status_code=409, detail="A statue is already being generated")
@@ -341,20 +396,27 @@ async def create_task(
                 detail=f"engine '{requested}' is not set up (missing {needed.parent.parent.name} venv)",
             )
         task_id = uuid.uuid4().hex[:12]
-        task_dir = WORK_DIR / task_id
+        tasks[task_id] = {
+            "status": "queued",
+            "created_at": time.time(),
+            "detail": "receiving photos…",
+            "engine": requested,
+            "extra_images": [],
+        }
+    task_dir = WORK_DIR / task_id
+    try:
         task_dir.mkdir(parents=True)
         image_path = await _save_upload(image, task_dir, "input")
         extra_paths = []
         for name, upload in (("back", image_back), ("left", image_left), ("right", image_right)):
             if upload is not None:
                 extra_paths.append(str(await _save_upload(upload, task_dir, name)))
-        tasks[task_id] = {
-            "status": "queued",
-            "created_at": time.time(),
-            "detail": "queued",
-            "engine": requested,
-            "extra_images": extra_paths,
-        }
+    except Exception as exc:  # noqa: BLE001 — release the slot whatever went wrong
+        tasks[task_id]["status"] = "failed"
+        tasks[task_id]["error"] = f"upload failed: {exc}"
+        raise HTTPException(status_code=400, detail=f"upload failed: {exc}") from exc
+    tasks[task_id]["extra_images"] = extra_paths
+    tasks[task_id]["detail"] = "queued"
     thread = threading.Thread(
         target=run_generation, args=(task_id, image_path, task_dir / "statue"), daemon=True
     )
@@ -395,6 +457,7 @@ def get_task(task_id: str) -> dict:
         "engine": task.get("engine"),
         "seed": task.get("seed"),
         "octree": task.get("octree"),
+        "repair_warning": task.get("repair_warning"),
     }
 
 

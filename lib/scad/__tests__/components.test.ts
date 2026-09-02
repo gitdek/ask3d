@@ -41,8 +41,23 @@ describe("analyzeStlComponents", () => {
   it("flags a tiny far-away fragment as floating debris", () => {
     const r = analyzeStlComponents(stlOf([...tet(0, 0, 0, 20), ...tet(100, 100, 100, 0.5)]));
     expect(r.componentCount).toBe(2);
-    expect(r.floatingCount).toBe(2); // neither touches the other
+    expect(r.floatingCount).toBe(1); // the big one stands on the plate
     expect(r.debrisCount).toBe(1); // only the small one is debris
+  });
+
+  it("does not call a small separate part debris when it stands on the plate", () => {
+    // e.g. a phone stand plus its little cable clip printed alongside
+    const r = analyzeStlComponents(stlOf([...tet(0, 0, 0, 20), ...tet(60, 0, 0, 0.5)]));
+    expect(r.componentCount).toBe(2);
+    expect(r.floatingCount).toBe(0);
+    expect(r.debrisCount).toBe(0);
+  });
+
+  it("measures plate level from the model, not from Z=0", () => {
+    const r = analyzeStlComponents(stlOf([...tet(0, 0, 5, 20), ...tet(60, 0, 5, 0.5)]));
+    expect(r.debrisCount).toBe(0);
+    const lifted = analyzeStlComponents(stlOf([...tet(0, 0, 5, 20), ...tet(60, 0, 40, 0.5)]));
+    expect(lifted.debrisCount).toBe(1);
   });
 
   it("does not call similar-sized separated parts debris (intentional multi-part)", () => {

@@ -11,6 +11,7 @@ import { analyzeStlComponents } from "@/lib/scad/components";
 import { colorPartSource, colorToHex, parseColorPlan } from "@/lib/scad/colors";
 import { compileOnce } from "@/lib/scad/compile-once";
 import { lintScad } from "@/lib/scad/lint";
+import { parseScadWarnings } from "@/lib/scad/errors";
 import { buildRepairMessage } from "@/lib/ai/system-prompt";
 import type { CompileFile, ScadError } from "@/lib/scad/types";
 import { describeUpload, processUpload, uploadPath, type UploadedAsset } from "@/lib/uploads";
@@ -22,6 +23,7 @@ import {
   pollStatueTask,
   statueHealth,
   type StatueEngine,
+  type StatueTaskStatus,
 } from "@/lib/statue";
 import {
   clearHistory,
@@ -195,10 +197,18 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     colorPartsRef.current = parts;
     setColorParts(parts);
   }, []);
-  // The compile-success effect can re-fire for the same result (dependency
-  // identity churn); the color build must run once per source or each
-  // re-fire would wipe finished parts and relaunch the renders.
-  const colorBuiltForRef = useRef<string | null>(null);
+  // Each compile result/failure is handled exactly once: the effects below
+  // re-fire on dependency identity churn, and a second pass would send a
+  // second repair message, re-save the library entry, or wipe finished
+  // color parts.
+  const handledResultRef = useRef<typeof result>(null);
+  const handledFailureRef = useRef<typeof failure>(null);
+  // Bumped whenever the viewer's model is replaced (compile, statue,
+  // library restore, Clear) so background work started for an earlier
+  // model — the per-color renders — can tell it has gone stale.
+  const viewerGenRef = useRef(0);
+  const [colorPending, setColorPending] = useState(false);
+  const [warnings, setWarnings] = useState<ScadError[]>([]);
   const uploadsRef = useRef<UploadedAsset[]>([]);
   // Paths added since the last send — their descriptions (and image parts)
   // ride along on the next message, once.
@@ -211,6 +221,23 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   // repair reply re-emits identical code or contains no code at all.
   const pendingRepairRef = useRef<{ errors: ScadError[]; stderr: string[] } | null>(null);
   const prevChatStatusRef = useRef(status);
+
+  // A statue, library restore, or Clear replaces whatever the viewer shows.
+  // Forgetting the last successful source matters: a later reply that
+  // re-emits that same program must compile again, not be skipped as
+  // "already showing".
+  const replaceViewerModel = useCallback(
+    (bytes: ArrayBuffer | null) => {
+      viewerGenRef.current += 1;
+      lastSuccessfulSourceRef.current = null;
+      applyColorParts(null);
+      setColorPending(false);
+      setWarnings([]);
+      setViewerError(null);
+      setStl(bytes);
+    },
+    [applyColorParts],
+  );
 
   const beginRepairOrFail = useCallback(
     (source: string, errors: ScadError[], stderr: string[]) => {
@@ -285,6 +312,8 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   // auto-repair loop as a compile error.
   useEffect(() => {
     if (!result || result.source !== lastCompiledSourceRef.current) return;
+    if (handledResultRef.current === result) return;
+    handledResultRef.current = result;
     // Empty output compiles "successfully" when nothing is instantiated at
     // the top level (e.g. the model left its module calls in a comment or
     // outside the code fence) — repairable, and worthless to display.
@@ -302,7 +331,16 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       );
       return;
     }
+    viewerGenRef.current += 1;
+    // A compile finishing is an external event (worker → hook state); the
+    // viewer state follows it, which is exactly what this rule discourages
+    // for derived state. Guarded above to run once per result.
+    /* eslint-disable react-hooks/set-state-in-effect */
+    applyColorParts(null);
+    setColorPending(false);
+    setWarnings(parseScadWarnings(result.stderr));
     setStl(result.stl); // show what compiled either way
+    /* eslint-enable react-hooks/set-state-in-effect */
     const report = analyzeStlComponents(result.stl);
     if (report.debrisCount > 0 && repairAttemptsRef.current < MAX_REPAIR_ATTEMPTS) {
       beginRepairOrFail(
@@ -327,32 +365,36 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     pendingRepairRef.current = null;
     // Multi-color: a color-structured program gets its parts re-rendered
     // one by one in the background; when they're all in, the viewer tints
-    // them and the 3MF exports per-color objects for AMS mapping. Runs
-    // once per compiled source — effect re-fires must not reset it.
-    if (colorBuiltForRef.current !== result.source) {
-      colorBuiltForRef.current = result.source;
-      applyColorParts(null);
-      const colorPlan = parseColorPlan(result.source);
-      if (colorPlan) {
-        const src = result.source;
-        void (async () => {
-          const parts: ColorPart[] = [];
-          for (let k = 1; k <= colorPlan.length; k++) {
-            try {
-              const stl = await compileOnce(colorPartSource(src, k), compileFilesOf(uploadsRef.current));
-              if (stl.byteLength >= 84 + 50) {
-                parts.push({ name: colorPlan[k - 1], hex: colorToHex(colorPlan[k - 1]), stl });
-              }
-            } catch (error) {
-              console.warn(`[multi-color] part ${k} render failed:`, error);
+    // them and the 3MF exports per-color objects for AMS mapping. The
+    // viewer generation captured here tells the loop to stand down if a
+    // statue, restore, or Clear replaced the model meanwhile.
+    const colorPlan = parseColorPlan(result.source);
+    if (colorPlan) {
+      const src = result.source;
+      const gen = viewerGenRef.current;
+      setColorPending(true);
+      void (async () => {
+        const parts: ColorPart[] = [];
+        for (let k = 1; k <= colorPlan.length; k++) {
+          if (viewerGenRef.current !== gen) return;
+          try {
+            const stl = await compileOnce(colorPartSource(src, k), compileFilesOf(uploadsRef.current));
+            if (stl.byteLength >= 84 + 50) {
+              parts.push({ name: colorPlan[k - 1], hex: colorToHex(colorPlan[k - 1]), stl });
             }
+          } catch (error) {
+            console.warn(`[multi-color] part ${k} render failed:`, error);
           }
-          if (lastCompiledSourceRef.current === src && parts.length >= 2) {
-            applyColorParts(parts);
-            console.info(`[multi-color] ${parts.length} color parts ready — 3MF will export per-color objects`);
-          }
-        })();
-      }
+        }
+        if (viewerGenRef.current !== gen) return;
+        setColorPending(false);
+        if (parts.length >= 2) {
+          applyColorParts(parts);
+          console.info(`[multi-color] ${parts.length} color parts ready — 3MF will export per-color objects`);
+        } else {
+          console.warn(`[multi-color] only ${parts.length} color part(s) rendered — the 3MF stays single-body`);
+        }
+      })();
     }
     // Refinements of the same request upsert one library entry, so
     // iteration keeps the final version — along with the prompt that made
@@ -367,13 +409,15 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       },
       result.stl,
     );
-  }, [result, captureHistory, beginRepairOrFail]);
+  }, [result, captureHistory, beginRepairOrFail, applyColorParts]);
 
   // Compile failure → auto-repair (code faults) or surface directly:
   // timeouts mean the model is too heavy, environment failures mean the
   // compiler never loaded — neither is fixable by rewriting code.
   useEffect(() => {
     if (!failure || failure.source !== lastCompiledSourceRef.current) return;
+    if (handledFailureRef.current === failure) return;
+    handledFailureRef.current = failure;
     if (failure.kind === "timeout") {
       const source = failure.source;
       setViewerError({
@@ -385,6 +429,9 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
           label: "Retry with a 5-minute limit",
           run: () => {
             setViewerError(null);
+            // Re-arm the staleness guard: a chat message sent since the
+            // timeout nulled it, and the retry's result would be discarded.
+            lastCompiledSourceRef.current = source;
             compile(source, compileFilesOf(uploadsRef.current), { timeoutMs: 300_000 });
           },
         },
@@ -457,6 +504,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   const handleAttach = useCallback(
     async (files: File[], captureToLibrary = true) => {
       setUploadError(null);
+      let suggestFor: UploadedAsset | null = null;
       for (const file of files) {
         try {
           const taken = new Set(uploadsRef.current.map((u) => u.path));
@@ -464,24 +512,11 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
           uploadsRef.current = [...uploadsRef.current, asset];
           unannouncedRef.current.add(asset.path);
           setUploads(uploadsRef.current);
-          // Suggestions: instant generic set, then photo-specific ones from
-          // the multimodal model (it sees the actual subject) when they land.
+          // Suggestions: instant generic set now, photo-specific ones from
+          // the multimodal model (it sees the actual subject) after the loop.
           suggestionsPathRef.current = asset.path;
           setSuggestions(staticSuggestions(asset));
-          if (asset.kind === "image" && asset.imageDataUrl) {
-            const forPath = asset.path;
-            void fetch("/api/suggest", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ image: asset.imageDataUrl }),
-            })
-              .then((r) => (r.ok ? r.json() : null))
-              .then((data: { suggestions?: Omit<Suggestion, "path">[] } | null) => {
-                if (!data?.suggestions?.length || suggestionsPathRef.current !== forPath) return;
-                setSuggestions(data.suggestions.slice(0, 3).map((s) => ({ ...s, path: forPath })));
-              })
-              .catch(() => {}); // generic suggestions stay
-          }
+          if (asset.kind === "image" && asset.imageDataUrl) suggestFor = asset;
           if (captureToLibrary) {
             // Best-effort from here on: the chip is committed, so a failed
             // library snapshot must not report the attach as failed.
@@ -500,6 +535,23 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
         } catch (error) {
           setUploadError(error instanceof Error ? error.message : String(error));
         }
+      }
+      // One vision call per batch, for the photo whose suggestions will
+      // actually show (the last attached) — a multi-photo drop used to fire
+      // one per file and discard all but the last.
+      if (suggestFor && suggestionsPathRef.current === suggestFor.path) {
+        const forPath = suggestFor.path;
+        void fetch("/api/suggest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: suggestFor.imageDataUrl }),
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data: { suggestions?: Omit<Suggestion, "path">[] } | null) => {
+            if (!data?.suggestions?.length || suggestionsPathRef.current !== forPath) return;
+            setSuggestions(data.suggestions.slice(0, 3).map((s) => ({ ...s, path: forPath })));
+          })
+          .catch(() => {}); // generic suggestions stay
       }
     },
     [captureHistory],
@@ -523,9 +575,20 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       lastStatueTaskIdRef.current = taskId;
       let modelFormat: "glb" | "obj" | "stl" = "glb";
       let genNote: string | undefined;
+      let repairWarning: string | null = null;
+      let pollFailures = 0;
       for (;;) {
         await sleep(STATUE_POLL_MS);
-        const s = await pollStatueTask(taskId);
+        let s: StatueTaskStatus;
+        try {
+          s = await pollStatueTask(taskId);
+          pollFailures = 0;
+        } catch (error) {
+          // A blip (sidecar restarting, laptop waking from sleep) must not
+          // orphan a generation that is still running fine.
+          if (++pollFailures >= 5) throw error;
+          continue;
+        }
         setStatueProgress({
           uploadPath: chipPath ?? "",
           phase: "generating",
@@ -534,6 +597,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
         });
         if (s.status === "succeeded") {
           modelFormat = s.model_format ?? "glb";
+          repairWarning = s.repair_warning ?? null;
           // Provenance for the library: enough to reproduce this exact statue.
           genNote =
             [
@@ -575,15 +639,18 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       uploadsRef.current = [...uploadsRef.current, statueAsset];
       unannouncedRef.current.add(statuePath);
       setUploads(uploadsRef.current);
-      setViewerError(null);
-      applyColorParts(null);
-      setStl(statueStl);
+      replaceViewerModel(statueStl);
+      if (repairWarning) {
+        setUploadError(
+          `Statue delivered, but the watertight-repair step failed (${repairWarning}) — check the mesh in the slicer before printing.`,
+        );
+      }
       captureHistory(
         { kind: "statue", name: `${baseName}-statue.stl`, mime: "model/stl", dims, note: genNote },
         statueStl,
       );
     },
-    [captureHistory, applyColorParts],
+    [captureHistory, replaceViewerModel],
   );
 
   // A statue task keeps running on the sidecar through page reloads —
@@ -644,16 +711,12 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
         const isModel = item.kind === "statue" || item.kind === "compiled" || item.kind === "mesh";
         const name = isModel && !/\.stl$/i.test(item.name) ? `${item.name}.stl` : item.name;
         await handleAttach([new File([bytes], name, { type: item.mime || undefined })], false);
-        if (isModel) {
-          setViewerError(null);
-          applyColorParts(null);
-          setStl(bytes);
-        }
+        if (isModel) replaceViewerModel(bytes);
       } finally {
         restoringRef.current = false;
       }
     },
-    [handleAttach],
+    [handleAttach, replaceViewerModel],
   );
 
   const handleDeleteHistory = useCallback(
@@ -677,9 +740,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   // model so reload-adoption doesn't resurrect it. A generation still in
   // flight is unaffected — it delivers (and re-arms adoption) when done.
   const handleClearModel = useCallback(() => {
-    setStl(null);
-    setViewerError(null);
-    applyColorParts(null);
+    replaceViewerModel(null);
     if (lastStatueTaskIdRef.current) {
       try {
         localStorage.setItem(DISMISSED_STATUE_TASK_KEY, lastStatueTaskIdRef.current);
@@ -687,7 +748,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
         // localStorage unavailable — clear still works for this session
       }
     }
-  }, []);
+  }, [replaceViewerModel]);
 
   // Photo → local TRELLIS.2 sidecar → GLB → printable STL → preview + a new
   // mesh upload the chat can build around via import().
@@ -868,6 +929,8 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
           <ViewerPanel
             stl={stl}
             colorParts={colorParts}
+            colorPending={colorPending}
+            warnings={warnings}
             pillState={pillState}
             viewerError={viewerError}
             nameHint={nameHint}

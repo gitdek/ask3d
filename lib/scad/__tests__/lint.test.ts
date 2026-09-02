@@ -50,6 +50,15 @@ describe("lintScad", () => {
     expect(lintScad('surface(file = "other.dat");')).toHaveLength(1);
   });
 
+  it("accepts both calling conventions for import() and surface()", () => {
+    expect(lintScad('import(file = "/uploads/dog.stl");', ["/uploads/dog.stl"])).toEqual([]);
+    expect(
+      lintScad('surface("/uploads/turing.dat", center = true);', ["/uploads/turing.dat"]),
+    ).toEqual([]);
+    expect(lintScad('surface("/etc/passwd");', ["/uploads/turing.dat"])).toHaveLength(1);
+    expect(lintScad('import(file = "/etc/passwd");', ["/uploads/dog.stl"])).toHaveLength(1);
+  });
+
   it("ignores import() mentioned in comments", () => {
     expect(lintScad('// import("x.stl") would fail\ncube(1);')).toEqual([]);
   });

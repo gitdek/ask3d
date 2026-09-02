@@ -97,6 +97,7 @@ export async function migrateLocalLibrary(): Promise<void> {
     });
     const existing = new Set((await listHistory()).map((m) => `${m.kind}|${m.name}`));
     items.sort((a, b) => a.createdAt - b.createdAt); // oldest first keeps order
+    let failed = 0;
     for (const m of items) {
       if (existing.has(`${m.kind}|${m.name}`)) continue;
       const bytes: ArrayBuffer | null = await new Promise((resolve) => {
@@ -111,11 +112,16 @@ export async function migrateLocalLibrary(): Promise<void> {
       });
       if (!bytes) continue;
       const { id: _id, createdAt: _c, size: _s, ...meta } = m;
-      await saveHistoryItem(meta, bytes).catch(() => {});
+      await saveHistoryItem(meta, bytes).catch(() => {
+        failed += 1;
+      });
     }
     db.close();
     localStorage.setItem(FLAG, "1");
     if (items.length > 0) console.info(`[library] migrated ${items.length} local items to the shared library`);
+    // The old per-browser copy (tens of MB of STLs) is dead weight once it
+    // is all on the server; keep it only if something failed to upload.
+    if (failed === 0) indexedDB.deleteDatabase("ask3d-history");
   } catch (error) {
     console.warn("[library] migration failed (will retry next load):", error);
   }

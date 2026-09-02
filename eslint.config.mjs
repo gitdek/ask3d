@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Not our code: vendored OpenSCAD/Draco builds, the Python sidecar and
+    // its gitignored venvs, runtime data.
+    "public/**",
+    "statue-service/**",
+    ".library/**",
+    ".logs/**",
   ]),
 ]);
 

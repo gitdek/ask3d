@@ -46,7 +46,7 @@ function checkFileCalls(
   let literalCount = 0;
   for (const m of source.matchAll(pathRe)) {
     literalCount += 1;
-    const path = m[1];
+    const path = m[1] ?? m[2];
     if (!allowedPaths.has(path)) {
       errors.push({
         line: lineOfIndex(source, m.index ?? 0),
@@ -84,12 +84,20 @@ export function lintScad(source: string, allowedPaths: readonly string[] = []): 
   });
 
   const allowed = new Set(allowedPaths);
-  checkFileCalls(source, blanked, "import", /\bimport\s*\(\s*"([^"]*)"/g, allowed, errors);
+  // Both OpenSCAD calling conventions: positional first argument or file=.
+  checkFileCalls(
+    source,
+    blanked,
+    "import",
+    /\bimport\s*\(\s*(?:file\s*=\s*)?"([^"]*)"/g,
+    allowed,
+    errors,
+  );
   checkFileCalls(
     source,
     blanked,
     "surface",
-    /\bsurface\s*\([^)]*?file\s*=\s*"([^"]*)"/g,
+    /\bsurface\s*\(\s*(?:"([^"]*)"|[^)]*?file\s*=\s*"([^"]*)")/g,
     allowed,
     errors,
   );

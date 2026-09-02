@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
@@ -31,10 +31,9 @@ const SMOOTH_SHADING_TRIANGLE_THRESHOLD = 150_000;
 const CREASE_ANGLE = THREE.MathUtils.degToRad(38);
 
 export default function StlMesh({ buffer, onDimensions, color = "#d8dbe0", visible = true }: StlMeshProps) {
-  const dimsRef = useRef<ModelDimensions>({ x: 0, y: 0, z: 0 });
   const invalidate = useThree((state) => state.invalidate);
 
-  const { geometry, flatShading } = useMemo(() => {
+  const { geometry, flatShading, dims } = useMemo(() => {
     let g = new STLLoader().parse(buffer);
     const triangles = g.attributes.position.count / 3;
     const flat = triangles <= SMOOTH_SHADING_TRIANGLE_THRESHOLD;
@@ -50,21 +49,21 @@ export default function StlMesh({ buffer, onDimensions, color = "#d8dbe0", visib
     g.computeBoundingBox();
     const size = new THREE.Vector3();
     g.boundingBox!.getSize(size);
-    dimsRef.current = { x: size.x, y: size.y, z: size.z };
+    const dims: ModelDimensions = { x: size.x, y: size.y, z: size.z };
     // OpenSCAD/printers are Z-up; three.js is Y-up. rotateX also rotates
     // the normal attribute, so creased normals survive.
     g.rotateX(-Math.PI / 2);
     if (flat) g.computeVertexNormals(); // per-face normals for the faceted look
     g.computeBoundingBox();
-    return { geometry: g, flatShading: flat };
+    return { geometry: g, flatShading: flat, dims };
   }, [buffer]);
 
   useEffect(() => {
-    onDimensions?.(dimsRef.current);
+    onDimensions?.(dims);
     // frameloop="demand": a new model arriving must explicitly request a
     // frame, or the pane stays stale until the user orbits.
     invalidate();
-  }, [geometry, onDimensions, invalidate]);
+  }, [dims, onDimensions, invalidate]);
 
   // R3F auto-dispose doesn't cover useMemo-created geometry on all update
   // paths; without this every recompile leaks GPU memory.

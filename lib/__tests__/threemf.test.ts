@@ -38,6 +38,17 @@ describe("stlTo3mf", () => {
     expect(model).toContain("BambuStudio");
   });
 
+  it("accepts ASCII STL too (library restores hand back user uploads verbatim)", () => {
+    const ascii =
+      "solid tri\n facet normal 0 0 1\n  outer loop\n   vertex 0 0 0\n   vertex 10 0 0\n" +
+      "   vertex 0 10 0\n  endloop\n endfacet\nendsolid tri\n";
+    const bytes = new TextEncoder().encode(ascii);
+    const out = unzipSync(stlTo3mf(bytes.buffer.slice(0, bytes.byteLength) as ArrayBuffer, "ascii"));
+    const model = strFromU8(out["3D/3dmodel.model"]);
+    expect(model).toContain('<vertex x="10" y="0" z="0"/>');
+    expect(model).toContain('<triangle v1="0" v2="1" v3="2"/>');
+  });
+
   it("exports one object per color with materials and extruder mapping", () => {
     const multi = unzipSync(
       stlTo3mfMulti(

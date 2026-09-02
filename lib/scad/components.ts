@@ -11,7 +11,8 @@
 
 export interface StlComponentReport {
   componentCount: number;
-  /** Components whose inflated AABB touches no other component's AABB. */
+  /** Components whose inflated AABB touches no other component's AABB and
+   *  that don't stand on the build plate (the model's lowest Z). */
   floatingCount: number;
   /** Floating components small enough to be severed debris, not a second
    *  intentional part (AABB volume < 25% of the largest component's). */
@@ -98,11 +99,16 @@ export function analyzeStlComponents(stl: ArrayBuffer, tolerance = 0.5): StlComp
 
   const all = [...boxes.values()];
   const largestVolume = Math.max(...all.map(boxVolume));
+  // Plate level = the model's lowest point (programs sit on Z=0, but
+  // imports and statues aren't always floored exactly). A separate part
+  // standing on the plate is a deliberate multi-part print, not debris.
+  const plateZ = Math.min(...all.map((b) => b.min[2]));
   let floatingCount = 0;
   let debrisCount = 0;
   for (let i = 0; i < all.length; i++) {
+    const onPlate = all[i].min[2] <= plateZ + tolerance;
     const touchesAny = all.some((other, j) => j !== i && boxesTouch(all[i], other, tolerance));
-    if (all.length > 1 && !touchesAny) {
+    if (all.length > 1 && !touchesAny && !onPlate) {
       floatingCount++;
       if (boxVolume(all[i]) < 0.25 * largestVolume) debrisCount++;
     }

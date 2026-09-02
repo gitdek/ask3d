@@ -66,13 +66,48 @@ function modelSettingsConfig(objects: { id: number; name: string; extruder?: num
   return `<?xml version="1.0" encoding="UTF-8"?>\n<config>\n${blocks}\n</config>`;
 }
 
-/** Indexed <mesh> XML from a binary STL (vertices deduplicated exactly). */
-function meshXml(stl: ArrayBuffer): string {
+/**
+ * ASCII STLs start with "solid" — but so can a binary file's free-text
+ * header, so the byte-count test decides.
+ */
+function isAsciiStl(stl: ArrayBuffer): boolean {
+  if (stl.byteLength < 5) return false;
+  const head = new TextDecoder().decode(new Uint8Array(stl, 0, 5));
+  if (head !== "solid") return false;
+  if (stl.byteLength < 84) return true;
+  return stl.byteLength !== 84 + new DataView(stl).getUint32(80, true) * 50;
+}
+
+/** Vertex coordinates, 9 numbers per triangle, from a binary or ASCII STL. */
+function stlCoordinates(stl: ArrayBuffer): Float64Array {
+  if (isAsciiStl(stl)) {
+    // Library restores hand back user uploads verbatim, and slicer/CAD
+    // exports are sometimes ASCII.
+    const text = new TextDecoder().decode(stl);
+    const nums: number[] = [];
+    for (const m of text.matchAll(/\bvertex\s+(\S+)\s+(\S+)\s+(\S+)/g)) {
+      nums.push(Number(m[1]), Number(m[2]), Number(m[3]));
+    }
+    if (nums.length === 0 || nums.length % 9 !== 0 || nums.some(Number.isNaN)) {
+      throw new Error("Malformed ASCII STL");
+    }
+    return Float64Array.from(nums);
+  }
+  if (stl.byteLength < 84) throw new Error("Not an STL file (too short)");
   const view = new DataView(stl);
-  if (stl.byteLength < 84) throw new Error("Not a binary STL (too short)");
   const triangleCount = view.getUint32(80, true);
   if (stl.byteLength < 84 + triangleCount * 50) throw new Error("Truncated binary STL");
+  const out = new Float64Array(triangleCount * 9);
+  for (let t = 0; t < triangleCount; t++) {
+    const base = 84 + t * 50 + 12; // skip the facet normal
+    for (let i = 0; i < 9; i++) out[t * 9 + i] = view.getFloat32(base + i * 4, true);
+  }
+  return out;
+}
 
+/** Indexed <mesh> XML from an STL (vertices deduplicated exactly). */
+function meshXml(stl: ArrayBuffer): string {
+  const coords = stlCoordinates(stl);
   const vertexIndex = new Map<string, number>();
   const vertices: string[] = [];
   const triangles: string[] = [];
@@ -86,14 +121,10 @@ function meshXml(stl: ArrayBuffer): string {
     }
     return idx;
   };
-  for (let t = 0; t < triangleCount; t++) {
-    const base = 84 + t * 50 + 12; // skip the facet normal
+  for (let t = 0; t < coords.length; t += 9) {
     const idx: number[] = [];
     for (let v = 0; v < 3; v++) {
-      const off = base + v * 12;
-      idx.push(
-        indexOf(view.getFloat32(off, true), view.getFloat32(off + 4, true), view.getFloat32(off + 8, true)),
-      );
+      idx.push(indexOf(coords[t + v * 3], coords[t + v * 3 + 1], coords[t + v * 3 + 2]));
     }
     triangles.push(`<triangle v1="${idx[0]}" v2="${idx[1]}" v3="${idx[2]}"/>`);
   }
