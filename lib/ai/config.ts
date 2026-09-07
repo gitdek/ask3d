@@ -1,5 +1,5 @@
 export const DEFAULT_PROVIDER = "google";
-export const DEFAULT_MODEL = "gemini-3.7-flash";
+export const DEFAULT_MODEL = "gemini-3.8-flash";
 
 export const PROVIDERS = ["google", "openrouter", "anthropic"] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
