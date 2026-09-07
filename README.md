@@ -43,7 +43,12 @@ Requires Node >= 22.
 
 There is no login: anyone who can reach the server can spend your API key
 and use the library, so the dev server listens on loopback unless you ask
-for `--lan`. Either way, `proxy.ts` refuses browser requests that didn't
+for `--lan`. In `--lan` mode the phone's browser sees this machine's LAN
+address as the host, and Next blocks its own dev resources for any host it
+wasn't started with — a blocked HMR socket leaves the page drawn but never
+hydrated, every button dead. `next.config.ts` therefore allows this
+machine's own addresses (read live, since DHCP reassigns them);
+`ASK3D_ALLOWED_HOSTS` adds more. Either way, `proxy.ts` refuses browser requests that didn't
 come from the app's own page (cross-site POSTs from another tab, DNS
 rebinding), and the statue sidecar is reached only through the app's
 `/statue/*` proxy, never directly.
