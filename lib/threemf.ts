@@ -48,16 +48,37 @@ const PROJECT_SETTINGS = `{
   "printer_model": "Bambu Lab A1"
 }`;
 
-function modelSettingsConfig(objects: { id: number; name: string; extruder?: number }[]): string {
+function xmlSafe(value: string): string {
+  return value.replace(/[<>&"]/g, "");
+}
+
+interface ConfigObject {
+  id: number;
+  name: string;
+  extruder?: number;
+  /** Sub-volumes of a single multi-material object (Bambu calls these parts). */
+  parts?: { id: number; name: string; extruder: number }[];
+}
+
+function modelSettingsConfig(objects: ConfigObject[]): string {
   const blocks = objects
     .map((o) => {
       const entries = [
-        `  <metadata key="name" value="${o.name.replace(/[<>&"]/g, "")}"/>`,
+        `  <metadata key="name" value="${xmlSafe(o.name)}"/>`,
         ...(o.extruder !== undefined
           ? [`  <metadata key="extruder" value="${o.extruder}"/>`]
           : []),
         ...Object.entries(OBJECT_PRINT_SETTINGS).map(
           ([k, v]) => `  <metadata key="${k}" value="${v}"/>`,
+        ),
+        // Parts belong to the object, so the slicer moves and arranges the
+        // whole model as one piece while still colouring each part.
+        ...(o.parts ?? []).map(
+          (p) =>
+            `  <part id="${p.id}" subtype="normal_part">\n` +
+            `   <metadata key="name" value="${xmlSafe(p.name)}"/>\n` +
+            `   <metadata key="extruder" value="${p.extruder}"/>\n` +
+            `  </part>`,
         ),
       ].join("\n");
       return ` <object id="${o.id}">\n${entries}\n </object>`;
@@ -174,16 +195,23 @@ export interface ColorPart {
 }
 
 /**
- * Multi-color 3MF: one object per color part (all in place, so they
- * assemble), a basematerials palette for display colors, and per-object
- * extruder assignments (1-based) that Bambu Studio maps to AMS slots.
+ * Multi-color 3MF: ONE object assembled from the color parts, not one
+ * object per color. Each part becomes a mesh object, a components object
+ * gathers them, and the build references only that assembly — so the
+ * slicer selects, moves and arranges the model as a single piece. Emitting
+ * a build item per color instead drops N loose objects on the plate, which
+ * the user can drag apart (and auto-arrange will). Colors come from a
+ * basematerials palette for display plus per-part extruder assignments
+ * (1-based) that Bambu Studio maps to AMS slots.
  */
 export function stlTo3mfMulti(parts: ColorPart[], title: string): Uint8Array {
   if (parts.length === 0) throw new Error("no color parts");
-  const safeTitle = title.replace(/[<>&"]/g, "");
+  const safeTitle = xmlSafe(title);
   const bases = parts
-    .map((p) => `<base name="${p.name.replace(/[<>&"]/g, "")}" displaycolor="${p.hex}FF"/>`)
+    .map((p) => `<base name="${xmlSafe(p.name)}" displaycolor="${p.hex}FF"/>`)
     .join("");
+  // 3MF requires a referenced object to be declared before the object that
+  // references it, so the meshes come first and the assembly last.
   const objects = parts
     .map(
       (p, i) => `  <object id="${i + 1}" type="model" pid="100" pindex="${i}">
@@ -191,7 +219,10 @@ export function stlTo3mfMulti(parts: ColorPart[], title: string): Uint8Array {
   </object>`,
     )
     .join("\n");
-  const items = parts.map((_, i) => `<item objectid="${i + 1}"/>`).join("");
+  const assemblyId = parts.length + 1;
+  const components = parts
+    .map((_, i) => `    <component objectid="${i + 1}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`)
+    .join("\n");
 
   const model = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02">
@@ -200,8 +231,13 @@ export function stlTo3mfMulti(parts: ColorPart[], title: string): Uint8Array {
  <resources>
   <basematerials id="100">${bases}</basematerials>
 ${objects}
+  <object id="${assemblyId}" type="model">
+   <components>
+${components}
+   </components>
+  </object>
  </resources>
- <build>${items}</build>
+ <build><item objectid="${assemblyId}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/></build>
 </model>`;
 
   return zipSync(
@@ -211,7 +247,13 @@ ${objects}
       "3D": { "3dmodel.model": strToU8(model) },
       Metadata: {
         "model_settings.config": strToU8(
-          modelSettingsConfig(parts.map((p, i) => ({ id: i + 1, name: p.name, extruder: i + 1 }))),
+          modelSettingsConfig([
+            {
+              id: assemblyId,
+              name: safeTitle,
+              parts: parts.map((p, i) => ({ id: i + 1, name: p.name, extruder: i + 1 })),
+            },
+          ]),
         ),
         "project_settings.config": strToU8(PROJECT_SETTINGS),
       },

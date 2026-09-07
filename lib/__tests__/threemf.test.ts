@@ -64,13 +64,22 @@ describe("stlTo3mf", () => {
     expect(model).toContain('displaycolor="#D4A017FF"');
     expect(model).toContain('<object id="1" type="model" pid="100" pindex="0">');
     expect(model).toContain('<object id="2" type="model" pid="100" pindex="1">');
-    expect(model).toContain('<item objectid="2"/>');
+    // The colors assemble into ONE object; a build item per color would drop
+    // loose pieces on the plate that the user (and auto-arrange) can separate.
+    expect(model).toContain('<object id="3" type="model">');
+    expect(model).toContain('<component objectid="1"');
+    expect(model).toContain('<component objectid="2"');
+    expect(model.match(/<item /g)).toHaveLength(1);
+    expect(model).toContain('<item objectid="3"');
     const config = strFromU8(multi["Metadata/model_settings.config"]);
-    expect(config).toContain('<object id="1">');
+    expect(config).toContain('<object id="3">');
+    expect(config).toContain('<part id="1" subtype="normal_part">');
     expect(config).toContain('<metadata key="extruder" value="1"/>');
-    expect(config).toContain('<object id="2">');
+    expect(config).toContain('<part id="2" subtype="normal_part">');
     expect(config).toContain('<metadata key="extruder" value="2"/>');
     expect(config).toContain('<metadata key="name" value="gold"/>');
+    // Print settings stay on the object, not duplicated onto every part.
+    expect(config.match(/wall_loops/g)).toHaveLength(1);
   });
 
   it("embeds per-object print settings keyed to the model object", () => {
