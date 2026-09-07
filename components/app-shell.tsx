@@ -239,6 +239,53 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     [applyColorParts],
   );
 
+  /**
+   * Re-render each color group of a color-structured program in the
+   * background, then tint the viewer and arm the per-color 3MF export.
+   * Used after a compile and after a library restore — the library keeps
+   * the source, so a restored model can get its colors back without the
+   * chat that made it. The viewer generation captured here tells a slow
+   * build to stand down if the model was replaced meanwhile.
+   */
+  const buildColorParts = useCallback(
+    (source: string) => {
+      const colorPlan = parseColorPlan(source);
+      if (!colorPlan) return;
+      const gen = viewerGenRef.current;
+      setColorPending(true);
+      void (async () => {
+        const parts: ColorPart[] = [];
+        for (let k = 1; k <= colorPlan.length; k++) {
+          if (viewerGenRef.current !== gen) return;
+          try {
+            const stl = await compileOnce(
+              colorPartSource(source, k),
+              compileFilesOf(uploadsRef.current),
+            );
+            if (stl.byteLength >= 84 + 50) {
+              parts.push({ name: colorPlan[k - 1], hex: colorToHex(colorPlan[k - 1]), stl });
+            }
+          } catch (error) {
+            console.warn(`[multi-color] part ${k} render failed:`, error);
+          }
+        }
+        if (viewerGenRef.current !== gen) return;
+        setColorPending(false);
+        if (parts.length >= 2) {
+          applyColorParts(parts);
+          console.info(
+            `[multi-color] ${parts.length} color parts ready — 3MF will export per-color objects`,
+          );
+        } else {
+          console.warn(
+            `[multi-color] only ${parts.length} color part(s) rendered — the 3MF stays single-body`,
+          );
+        }
+      })();
+    },
+    [applyColorParts],
+  );
+
   const beginRepairOrFail = useCallback(
     (source: string, errors: ScadError[], stderr: string[]) => {
       if (source !== lastCompiledSourceRef.current) return;
@@ -368,34 +415,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
     // them and the 3MF exports per-color objects for AMS mapping. The
     // viewer generation captured here tells the loop to stand down if a
     // statue, restore, or Clear replaced the model meanwhile.
-    const colorPlan = parseColorPlan(result.source);
-    if (colorPlan) {
-      const src = result.source;
-      const gen = viewerGenRef.current;
-      setColorPending(true);
-      void (async () => {
-        const parts: ColorPart[] = [];
-        for (let k = 1; k <= colorPlan.length; k++) {
-          if (viewerGenRef.current !== gen) return;
-          try {
-            const stl = await compileOnce(colorPartSource(src, k), compileFilesOf(uploadsRef.current));
-            if (stl.byteLength >= 84 + 50) {
-              parts.push({ name: colorPlan[k - 1], hex: colorToHex(colorPlan[k - 1]), stl });
-            }
-          } catch (error) {
-            console.warn(`[multi-color] part ${k} render failed:`, error);
-          }
-        }
-        if (viewerGenRef.current !== gen) return;
-        setColorPending(false);
-        if (parts.length >= 2) {
-          applyColorParts(parts);
-          console.info(`[multi-color] ${parts.length} color parts ready — 3MF will export per-color objects`);
-        } else {
-          console.warn(`[multi-color] only ${parts.length} color part(s) rendered — the 3MF stays single-body`);
-        }
-      })();
-    }
+    buildColorParts(result.source);
     // Refinements of the same request upsert one library entry, so
     // iteration keeps the final version — along with the prompt that made
     // it and the OpenSCAD source it compiled from.
@@ -409,7 +429,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
       },
       result.stl,
     );
-  }, [result, captureHistory, beginRepairOrFail, applyColorParts]);
+  }, [result, captureHistory, beginRepairOrFail, applyColorParts, buildColorParts]);
 
   // Compile failure → auto-repair (code faults) or surface directly:
   // timeouts mean the model is too heavy, environment failures mean the
@@ -711,12 +731,18 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
         const isModel = item.kind === "statue" || item.kind === "compiled" || item.kind === "mesh";
         const name = isModel && !/\.stl$/i.test(item.name) ? `${item.name}.stl` : item.name;
         await handleAttach([new File([bytes], name, { type: item.mime || undefined })], false);
-        if (isModel) replaceViewerModel(bytes);
+        if (isModel) {
+          replaceViewerModel(bytes);
+          // The library keeps the program that produced the model, so a
+          // color-structured one gets its colors (and its per-color 3MF)
+          // back on restore instead of silently becoming single-body.
+          if (item.scad) buildColorParts(item.scad);
+        }
       } finally {
         restoringRef.current = false;
       }
     },
-    [handleAttach, replaceViewerModel],
+    [handleAttach, replaceViewerModel, buildColorParts],
   );
 
   const handleDeleteHistory = useCallback(
