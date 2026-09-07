@@ -25,9 +25,20 @@ describe("stlTo3mf", () => {
       "_rels/.rels",
     ]);
     // The gate in Bambu's Plater.cpp accepts configs naming a Bambu printer.
-    expect(strFromU8(files["Metadata/project_settings.config"])).toContain(
-      '"printer_model": "Bambu Lab A1"',
-    );
+    const project = JSON.parse(strFromU8(files["Metadata/project_settings.config"]));
+    expect(project.printer_model).toBe("Bambu Lab A1");
+    // Naming a real filament preset stops Bambu inventing an empty
+    // placeholder, which reads 0.00g and inflates the time estimate.
+    expect(project.filament_settings_id).toEqual(["Generic PLA @BBL A1"]);
+    expect(project.filament_type).toEqual(["PLA"]);
+    // No process or nozzle keys — the user's own print profile stays in charge.
+    expect(Object.keys(project).sort()).toEqual([
+      "filament_colour",
+      "filament_ids",
+      "filament_settings_id",
+      "filament_type",
+      "printer_model",
+    ]);
   });
 
   it("writes an indexed mesh with the title sanitized", () => {
@@ -78,6 +89,10 @@ describe("stlTo3mf", () => {
     expect(config).toContain('<part id="2" subtype="normal_part">');
     expect(config).toContain('<metadata key="extruder" value="2"/>');
     expect(config).toContain('<metadata key="name" value="gold"/>');
+    // One filament slot per color, carrying that color for the AMS dialog.
+    const project = JSON.parse(strFromU8(multi["Metadata/project_settings.config"]));
+    expect(project.filament_colour).toEqual(["#1B2A4A", "#D4A017"]);
+    expect(project.filament_settings_id).toHaveLength(2);
     // Print settings stay on the object, not duplicated onto every part.
     expect(config.match(/wall_loops/g)).toHaveLength(1);
   });

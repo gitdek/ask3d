@@ -37,16 +37,39 @@ const OBJECT_PRINT_SETTINGS: Record<string, string> = {
 };
 
 /**
- * Minimal project config that passes Bambu Studio's validity gate.
+ * Project config that passes Bambu Studio's validity gate AND names a real
+ * filament preset per slot.
+ *
  * Plater.cpp rejects foreign 3MFs ("invalid config, load geometry data
  * only") unless the config names a Bambu printer_model
  * (is_bbl_vendor_config) or carries nozzle_diameter (check_project_config).
- * We declare only printer_model — enough to be accepted, while carrying no
- * nozzle/process values that could override the user's active presets.
+ * printer_model alone satisfies that, but leaving the filament slots
+ * unnamed makes Bambu invent a placeholder preset called after the file,
+ * with no density and no speeds: weights read 0.00g and the time estimate
+ * balloons (a 16h print quoted at 1d13h). So each slot names the stock
+ * Generic PLA preset and its filament id, which Bambu resolves to the real
+ * thing. Nothing about the process/nozzle is declared, so the user's own
+ * print profile still governs everything else, and switching a slot to
+ * another material is one dropdown away.
  */
-const PROJECT_SETTINGS = `{
-  "printer_model": "Bambu Lab A1"
-}`;
+const FILAMENT_PRESET = "Generic PLA @BBL A1";
+const FILAMENT_ID = "GFL99"; // Bambu's id for Generic PLA
+const DEFAULT_FILAMENT_COLOUR = "#F5F2EB";
+
+function projectSettings(colours: string[]): string {
+  const slots = colours.length > 0 ? colours : [DEFAULT_FILAMENT_COLOUR];
+  return JSON.stringify(
+    {
+      printer_model: "Bambu Lab A1",
+      filament_settings_id: slots.map(() => FILAMENT_PRESET),
+      filament_ids: slots.map(() => FILAMENT_ID),
+      filament_type: slots.map(() => "PLA"),
+      filament_colour: slots,
+    },
+    null,
+    2,
+  );
+}
 
 function xmlSafe(value: string): string {
   return value.replace(/[<>&"]/g, "");
@@ -179,7 +202,7 @@ export function stlTo3mf(stl: ArrayBuffer, title: string): Uint8Array {
       "3D": { "3dmodel.model": strToU8(model) },
       Metadata: {
         "model_settings.config": strToU8(modelSettingsConfig([{ id: 1, name: safeTitle }])),
-        "project_settings.config": strToU8(PROJECT_SETTINGS),
+        "project_settings.config": strToU8(projectSettings([])),
       },
     },
     { level: 6 },
@@ -255,7 +278,7 @@ ${components}
             },
           ]),
         ),
-        "project_settings.config": strToU8(PROJECT_SETTINGS),
+        "project_settings.config": strToU8(projectSettings(parts.map((p) => p.hex))),
       },
     },
     { level: 6 },
