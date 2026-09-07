@@ -18,7 +18,7 @@ free API key with no credit card at <https://aistudio.google.com>:
 
 ```
 AI_PROVIDER=google
-AI_MODEL=gemini-3.7-flash
+AI_MODEL=gemini-3.8-flash
 GOOGLE_GENERATIVE_AI_API_KEY=your-key
 ```
 
@@ -27,31 +27,37 @@ and Anthropic (`AI_PROVIDER=anthropic`, e.g. `AI_MODEL=claude-sonnet-5`).
 Set the matching `*_API_KEY` and restart.
 
 ```bash
-./start.sh        # web app + statue sidecar, opens http://localhost:3000
-./start.sh --lan  # also reachable from other devices on your Wi-Fi
-./start.sh stop   # shut both down, running generators included (also: status, logs)
+./start.sh          # web app + statue sidecar; usable from your phone too
+./start.sh --local  # loopback only: nothing off this machine can reach it
+./start.sh stop     # shut both down, running generators included (also: status, logs)
 ```
+
+`./start.sh` prints both addresses — `http://localhost:3000` and the LAN one
+to open on a phone. Statues work from the phone as well, since the sidecar is
+reached through the app's own origin rather than the host's loopback.
 
 Or run the pieces by hand:
 
 ```bash
-npm run dev     # http://localhost:3000 (loopback only; npm run dev:lan for the LAN)
-npm test        # unit tests (fence extraction, lint, stderr parsing, 3MF)
+npm run dev       # localhost + your LAN address (npm run dev:local for loopback only)
+npm test          # unit tests (fence extraction, lint, stderr parsing, 3MF)
 ```
 
 Requires Node >= 22.
 
-There is no login: anyone who can reach the server can spend your API key
-and use the library, so the dev server listens on loopback unless you ask
-for `--lan`. In `--lan` mode the phone's browser sees this machine's LAN
-address as the host, and Next blocks its own dev resources for any host it
-wasn't started with — a blocked HMR socket leaves the page drawn but never
-hydrated, every button dead. `next.config.ts` therefore allows this
-machine's own addresses (read live, since DHCP reassigns them);
-`ASK3D_ALLOWED_HOSTS` adds more. Either way, `proxy.ts` refuses browser requests that didn't
-come from the app's own page (cross-site POSTs from another tab, DNS
-rebinding), and the statue sidecar is reached only through the app's
-`/statue/*` proxy, never directly.
+There is no login, so anyone already on your network can spend your API key
+and use the library — fine on a home Wi-Fi, worth `--local` on a shared or
+public one. What the LAN default does *not* open up: `proxy.ts` refuses
+browser requests that didn't come from the app's own page (cross-site POSTs
+from another tab, DNS rebinding), and the statue sidecar is never reachable
+directly, only through `/statue/*`.
+
+One wrinkle the LAN default handles for you: a phone's browser sees this
+machine's LAN address as the host, and Next blocks its own dev resources for
+any host it wasn't started with — a blocked hot-reload socket leaves the page
+drawn but never hydrated, every button silently dead. `next.config.ts`
+therefore allows this machine's own addresses, read live so a new DHCP lease
+doesn't break it; `ASK3D_ALLOWED_HOSTS` adds more.
 
 ## How it works
 

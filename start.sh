@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # ask3d launcher: web app (Next.js, :3000) + statue sidecar (FastAPI, :8765).
 #
-#   ./start.sh            start anything not already running, then open the app
-#   ./start.sh --lan      same, but the web app also listens on your LAN address
-#                         (other devices on your Wi-Fi can use it — statues too)
+#   ./start.sh            start anything not already running, then open the app.
+#                         Listens on your LAN address too, so your phone and any
+#                         other device on the Wi-Fi can use it — statues included.
+#   ./start.sh --local    loopback only: nothing off this machine can reach it
 #   ./start.sh stop       stop what start.sh started, running generators included
 #   ./start.sh status     show what's running
 #   ./start.sh logs       tail both logs
@@ -15,13 +16,14 @@ PID_DIR=.logs
 mkdir -p "$LOG_DIR"
 
 MODE=start
-LAN=0
+LAN=1  # the app is meant to be usable from a phone; --local opts out
 for arg in "$@"; do
   case "$arg" in
-    --lan) LAN=1 ;;
+    --local | --loopback) LAN=0 ;;
+    --lan) LAN=1 ;; # now the default; still accepted
     start | stop | status | logs) MODE=$arg ;;
     *)
-      echo "usage: ./start.sh [start [--lan]|stop|status|logs]" >&2
+      echo "usage: ./start.sh [start [--local]|stop|status|logs]" >&2
       exit 2
       ;;
   esac
@@ -95,15 +97,17 @@ case "$MODE" in
     start_one "statue sidecar" "$PID_DIR/sidecar.pid" "$LOG_DIR/sidecar.log" 8765 /health \
       uv run "$PWD/statue-service/server.py"
     if [[ $LAN == 1 ]]; then
-      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / npm run dev:lan
-    else
       start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / npm run dev
+    else
+      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / npm run dev:local
     fi
     echo
     echo "ask3d ready → http://localhost:3000"
     if [[ $LAN == 1 ]]; then
       ip=$(lan_ip)
       [[ -n $ip ]] && echo "on your network → http://$ip:3000"
+    else
+      echo "(this machine only — omit --local to use it from your phone)"
     fi
     command -v open >/dev/null && open http://localhost:3000
     ;;
