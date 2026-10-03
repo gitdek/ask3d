@@ -1,11 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ModelDimensions } from "./stl-mesh";
 import type { PillState } from "./status-pill";
 import type { ScadError } from "@/lib/scad/types";
-import StatusPill from "./status-pill";
+import PipelineRail from "./pipeline-rail";
+import BlueprintEmpty from "./blueprint-empty";
 import ErrorPanel from "./error-panel";
 import DownloadButton from "./download-button";
 import DancingPuppy from "./dancing-puppy";
@@ -50,6 +51,19 @@ function formatMm(value: number): string {
   return value >= 10 ? value.toFixed(0) : value.toFixed(1);
 }
 
+/** Viewfinder corners — they frame the stage like a build plate. */
+function PlateCorners() {
+  const corner = "pointer-events-none absolute h-5 w-5 border-[var(--rule-strong)]";
+  return (
+    <div className="pointer-events-none absolute inset-3 hidden sm:block">
+      <span className={`${corner} left-0 top-0 border-l border-t rounded-tl-md`} />
+      <span className={`${corner} right-0 top-0 border-r border-t rounded-tr-md`} />
+      <span className={`${corner} bottom-0 left-0 border-b border-l rounded-bl-md`} />
+      <span className={`${corner} bottom-0 right-0 border-b border-r rounded-br-md`} />
+    </div>
+  );
+}
+
 export default function ViewerPanel({
   stl,
   colorParts,
@@ -63,6 +77,13 @@ export default function ViewerPanel({
 }: ViewerPanelProps) {
   const [dims, setDims] = useState<ModelDimensions | null>(null);
   const handleDimensions = useCallback((d: ModelDimensions) => setDims(d), []);
+  // Remounting a one-shot element is the cheapest way to replay an animation:
+  // every new mesh gets a fresh key, so the sweep runs exactly once per model.
+  const landingRef = useRef(0);
+  const [landing, setLanding] = useState(0);
+  useEffect(() => {
+    if (stl) setLanding(++landingRef.current);
+  }, [stl]);
   const waiting =
     pillState.kind === "generating" ||
     pillState.kind === "compiling" ||
@@ -82,24 +103,30 @@ export default function ViewerPanel({
       : "Export as 3MF (Bambu Studio's native format)";
 
   return (
-    <div className="relative h-full min-h-[320px] bg-neutral-950">
+    <div className="relative h-full min-h-[320px] overflow-hidden bg-[var(--background)]">
       <StlCanvas stl={stl} colorParts={colorParts} onDimensions={handleDimensions} />
+      <PlateCorners />
+      {landing > 0 && (
+        <span
+          key={landing}
+          aria-hidden="true"
+          className="a3d-materialize pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-transparent via-[var(--beam-1)]/25 to-transparent"
+        />
+      )}
 
       {!stl && !viewerError && !waiting && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="max-w-xs text-center text-sm text-neutral-500">
-            Describe an object in the chat and it will appear here, ready to print.
-          </p>
+          <BlueprintEmpty />
         </div>
       )}
 
-      {/* Long waits get a dancing Ridgeback puppy: centered when the stage
-          is empty, tucked in a corner when a model is already showing. */}
+      {/* Long waits get a dancing puppy: centered when the stage is empty,
+          tucked in a corner when a model is already showing. */}
       {waiting && !viewerError && (
         <div
           className={
             stl
-              ? "pointer-events-none absolute bottom-16 left-4"
+              ? "pointer-events-none absolute bottom-20 left-5"
               : "pointer-events-none absolute inset-0 flex items-center justify-center"
           }
         >
@@ -108,11 +135,12 @@ export default function ViewerPanel({
       )}
 
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {stl && dims && (
-              <span className="rounded-full bg-neutral-800/80 px-3 py-1 text-xs font-medium text-neutral-200 shadow">
-                {formatMm(dims.x)} × {formatMm(dims.y)} × {formatMm(dims.z)} mm
+              <span className="a3d-rise whitespace-nowrap rounded-full border border-[var(--rule-strong)] bg-black/55 px-3 py-1 font-mono text-xs font-medium tabular-nums text-neutral-200 shadow-lg backdrop-blur">
+                {formatMm(dims.x)} × {formatMm(dims.y)} × {formatMm(dims.z)}
+                <span className="ml-1 text-neutral-500">mm</span>
               </span>
             )}
             {stl && warnings.length > 0 && (
@@ -120,13 +148,13 @@ export default function ViewerPanel({
                 title={warnings
                   .map((w) => (w.line !== undefined ? `line ${w.line}: ${w.message}` : w.message))
                   .join("\n")}
-                className="pointer-events-auto cursor-help rounded-full bg-amber-900/70 px-3 py-1 text-xs font-medium text-amber-200 shadow"
+                className="a3d-rise pointer-events-auto cursor-help rounded-full border border-[var(--warn)]/30 bg-[var(--warn)]/10 px-3 py-1 text-xs font-medium text-[var(--warn)] shadow-lg backdrop-blur"
               >
                 ⚠ {warnings.length} compiler warning{warnings.length === 1 ? "" : "s"}
               </span>
             )}
           </div>
-          <StatusPill state={pillState} />
+          <PipelineRail state={pillState} />
         </div>
 
         {viewerError && (
@@ -147,7 +175,7 @@ export default function ViewerPanel({
               type="button"
               onClick={onClear}
               title="Clear the viewer — a refresh won't bring this model back"
-              className="pointer-events-auto rounded-lg bg-neutral-800/80 px-4 py-2 text-sm font-medium text-neutral-400 shadow transition hover:bg-neutral-700 hover:text-neutral-200"
+              className="a3d-rise pointer-events-auto rounded-lg border border-[var(--rule)] bg-black/40 px-4 py-2 text-sm font-medium text-neutral-400 shadow-lg backdrop-blur transition hover:border-[var(--rule-strong)] hover:text-neutral-100"
             >
               Clear
             </button>
@@ -158,8 +186,21 @@ export default function ViewerPanel({
               onClick={onDownload3mf}
               disabled={colorPending}
               title={threeMfTitle}
-              className="pointer-events-auto rounded-lg bg-neutral-700 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-neutral-600 disabled:cursor-wait disabled:opacity-60"
+              className={`a3d-rise pointer-events-auto rounded-lg border border-[var(--rule-strong)] bg-black/40 px-4 py-2 text-sm font-semibold text-neutral-100 shadow-lg backdrop-blur transition hover:bg-black/60 disabled:cursor-wait disabled:opacity-60 ${
+                colorCount ? "a3d-ring" : ""
+              }`}
             >
+              {colorCount > 0 && (
+                <span className="mr-2 inline-flex -space-x-1 align-middle">
+                  {colorParts!.slice(0, 4).map((part, i) => (
+                    <span
+                      key={i}
+                      className="h-2.5 w-2.5 rounded-full ring-1 ring-black/60"
+                      style={{ background: part.hex }}
+                    />
+                  ))}
+                </span>
+              )}
               {threeMfLabel}
             </button>
           )}

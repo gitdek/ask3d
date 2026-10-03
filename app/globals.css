@@ -4,9 +4,24 @@
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/code/dist/*.js";
 
+/* ---------------------------------------------------------------- tokens --
+   The look is "lit blueprint": near-black paper, hairline rules, and a
+   cyan→violet beam that stands for the machine doing work. Emerald is
+   reserved for the one button that hands you a file.                        */
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #07070b;
+  --foreground: #e8e8ed;
+
+  --panel: #0c0c12;
+  --panel-raised: #12121a;
+  --rule: rgba(255, 255, 255, 0.07);
+  --rule-strong: rgba(255, 255, 255, 0.14);
+
+  --beam-1: #22d3ee;
+  --beam-2: #a78bfa;
+  --beam-3: #34d399;
+  --warn: #fbbf24;
+  --danger: #f87171;
 }
 
 @theme inline {
@@ -20,4 +35,225 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* ------------------------------------------------------------ keyframes -- */
+@keyframes a3d-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes a3d-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -10px, 0); }
+}
+/* Technical drawing that inks itself in. */
+@keyframes a3d-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes a3d-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+/* Chat turns and chips arriving. */
+@keyframes a3d-rise {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+/* The spark that runs the pipeline rail while the machine is busy. */
+@keyframes a3d-travel {
+  0%   { transform: translateX(-120%); opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { transform: translateX(520%); opacity: 0; }
+}
+@keyframes a3d-breathe {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.9; }
+}
+/* Slow drift for the ambient wash behind the panels. */
+@keyframes a3d-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  33%  { transform: translate3d(3%, -4%, 0) scale(1.08); }
+  66%  { transform: translate3d(-3%, 3%, 0) scale(0.96); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes a3d-grid-pan {
+  to { background-position: 40px 40px; }
+}
+@keyframes a3d-sheen {
+  0%   { transform: translateX(-130%) skewX(-18deg); }
+  100% { transform: translateX(260%) skewX(-18deg); }
+}
+
+/* -------------------------------------------------------------- surfaces -- */
+/* Blueprint ruling. Two hairline grids at different pitches, panning very
+   slowly so the page feels alive without anything demanding attention. */
+.a3d-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px, 200px 200px, 200px 200px;
+  animation: a3d-grid-pan 14s linear infinite;
+}
+
+/* Two slow colour washes. Pure compositing — no layout, no paint storms. */
+.a3d-aurora::before,
+.a3d-aurora::after {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  pointer-events: none;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.16;
+  will-change: transform;
+}
+.a3d-aurora::before {
+  background: radial-gradient(circle at 30% 30%, var(--beam-1), transparent 62%);
+  animation: a3d-drift 26s ease-in-out infinite;
+}
+.a3d-aurora::after {
+  background: radial-gradient(circle at 70% 70%, var(--beam-2), transparent 62%);
+  animation: a3d-drift 34s ease-in-out infinite reverse;
+}
+
+.a3d-beam-text {
+  background: linear-gradient(100deg, var(--beam-1), var(--beam-2) 60%, var(--beam-1));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* Hairline gradient edge used on the primary action and active chips. */
+.a3d-ring {
+  position: relative;
+}
+.a3d-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(130deg, var(--beam-1), var(--beam-2));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* A light sweeps across the button once on hover. */
+.a3d-sheen { position: relative; overflow: hidden; }
+.a3d-sheen > .a3d-sheen-bar {
+  position: absolute;
+  inset-block: 0;
+  width: 42%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  opacity: 0;
+}
+.a3d-sheen:hover > .a3d-sheen-bar {
+  opacity: 1;
+  animation: a3d-sheen 820ms ease-out;
+}
+
+.a3d-rise { animation: a3d-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.a3d-fade { animation: a3d-fade-in 420ms ease-out both; }
+.a3d-float { animation: a3d-float 6s ease-in-out infinite; }
+.a3d-breathe { animation: a3d-breathe 2.2s ease-in-out infinite; }
+.a3d-spin-slow { animation: a3d-spin 18s linear infinite; }
+.a3d-travel { animation: a3d-travel 1.9s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+/* Stroked SVG paths that ink themselves in; the delay is set per element. */
+.a3d-ink {
+  stroke-dasharray: var(--len, 400);
+  stroke-dashoffset: var(--len, 400);
+  animation: a3d-draw 1.5s ease-out forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* Thin, unobtrusive scrollbars that match the surfaces. */
+.a3d-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+.a3d-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.a3d-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 9999px;
+}
+.a3d-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.26); }
+
+/* ------------------------------------------------------- reduced motion -- */
+/* Everything above is decoration. If the viewer asked for calm, give the
+   final frame of each animation rather than the journey to it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .a3d-ink { stroke-dashoffset: 0; }
+}
+
+/* ===================================================== bold motion layer ==
+   The empty stage runs a constructive-solid-geometry loop: a part is drawn,
+   a cutting tool flies in, the boolean fires, and a bore is left behind. It
+   is the product's whole idea in seven seconds.                            */
+@keyframes a3d-csg-tool {
+  0%, 8%    { opacity: 0; transform: translate(120px, -58px); }
+  16%       { opacity: 0.85; transform: translate(96px, -46px); }
+  42%       { opacity: 0.85; transform: translate(0, 0); }
+  50%       { opacity: 0.55; transform: translate(0, 0); }
+  58%, 100% { opacity: 0; transform: translate(0, 0); }
+}
+@keyframes a3d-csg-flash {
+  0%, 44%   { opacity: 0; transform: scale(0.5); }
+  50%       { opacity: 0.9; transform: scale(1.5); }
+  60%, 100% { opacity: 0; transform: scale(2.1); }
+}
+@keyframes a3d-csg-bore {
+  0%, 48%   { opacity: 0; }
+  56%       { opacity: 1; }
+  92%       { opacity: 1; }
+  100%      { opacity: 0; }
+}
+@keyframes a3d-csg-dims {
+  0%, 60%  { opacity: 0; }
+  70%, 92% { opacity: 1; }
+  100%     { opacity: 0; }
+}
+.a3d-csg-tool  { animation: a3d-csg-tool 7s ease-in-out infinite; }
+.a3d-csg-flash { animation: a3d-csg-flash 7s ease-out infinite; transform-origin: 160px 85px; }
+.a3d-csg-bore  { animation: a3d-csg-bore 7s ease-in-out infinite; }
+.a3d-csg-dims  { animation: a3d-csg-dims 7s ease-in-out infinite; }
+
+/* Wireframe solids drifting far behind the conversation. */
+@keyframes a3d-orbit {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50%  { transform: translate3d(14px, -26px, 0) rotate(180deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(360deg); }
+}
+.a3d-orbit { animation: a3d-orbit var(--dur, 40s) linear infinite; transform-origin: center; }
+
+/* One bright sweep across the stage the moment a new mesh lands. */
+@keyframes a3d-materialize {
+  0%   { opacity: 0; transform: translateY(-100%); }
+  18%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(100%); }
+}
+.a3d-materialize { animation: a3d-materialize 900ms cubic-bezier(0.2, 0.8, 0.2, 1) 1 both; }
+
+/* Film grain. Static, cheap, and it stops the flat blacks from banding. */
+.a3d-grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.16;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
 }

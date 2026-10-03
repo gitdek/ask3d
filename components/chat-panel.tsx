@@ -5,6 +5,7 @@ import type { UIMessage } from "ai";
 import type { UploadedAsset } from "@/lib/uploads";
 import type { StatueProgress, Suggestion } from "./app-shell";
 import ChatMessage from "./chat-message";
+import WireframeDrift from "./wireframe-drift";
 
 const EXAMPLE_PROMPTS = [
   "a phone stand at a 60° angle",
@@ -90,7 +91,7 @@ export default function ChatPanel({
 
   return (
     <div
-      className="relative flex h-full flex-col border-r border-neutral-800"
+      className="a3d-aurora a3d-grain relative flex h-full flex-col overflow-hidden border-r border-[var(--rule)] bg-[var(--panel)]"
       onDragEnter={(e) => {
         if (!hasFiles(e)) return;
         e.preventDefault();
@@ -117,17 +118,18 @@ export default function ChatPanel({
         if (files.length) onAttach(files);
       }}
     >
+      <WireframeDrift />
       {dragActive && (
-        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-sky-500/70 bg-sky-950/40">
-          <p className="text-sm font-medium text-sky-200">
+        <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-[var(--beam-1)]/60 bg-[var(--beam-1)]/[0.07] backdrop-blur-sm">
+          <p className="a3d-breathe text-sm font-medium text-[var(--beam-1)]">
             Drop photos, STL, or OpenSCAD files to attach
           </p>
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div className="a3d-scroll relative z-10 min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {messages.length === 0 && (
           <div className="mt-8 space-y-3 text-center">
-            <p className="text-sm text-neutral-400">
+            <p className="a3d-rise text-sm text-neutral-300">
               Describe an object and I&apos;ll design it for 3D printing.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
@@ -136,7 +138,7 @@ export default function ChatPanel({
                   key={prompt}
                   type="button"
                   onClick={() => onSend(prompt)}
-                  className="rounded-full border border-neutral-700 px-3 py-1 text-xs text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+                  className="a3d-rise rounded-full border border-[var(--rule)] px-3 py-1 text-xs text-neutral-400 transition hover:-translate-y-0.5 hover:border-[var(--beam-1)]/50 hover:text-[var(--beam-1)]"
                 >
                   {prompt}
                 </button>
@@ -164,13 +166,13 @@ export default function ChatPanel({
       </div>
 
       {(uploads.length > 0 || uploadError) && (
-        <div className="border-t border-neutral-800 px-3 py-2">
+        <div className="relative z-10 border-t border-[var(--rule)] px-3 py-2">
           {uploads.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {uploads.map((u) => (
                 <span
                   key={u.path}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-neutral-800 px-2.5 py-1 text-xs text-neutral-300"
+                  className="a3d-rise inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--panel-raised)] px-2.5 py-1 text-xs text-neutral-300"
                   title={u.path}
                 >
                   <span className="text-neutral-500">{KIND_ICON[u.kind]}</span>
@@ -215,17 +217,17 @@ export default function ChatPanel({
       )}
 
       {suggestions && suggestions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 border-t border-neutral-800/60 px-3 py-2">
+        <div className="relative z-10 flex flex-wrap gap-1.5 border-t border-[var(--rule)] px-3 py-2">
           {suggestions.map((s) => (
             <button
               key={`${s.action}:${s.label}`}
               type="button"
               disabled={busy || statueProgress !== null}
               onClick={() => onSuggestion(s)}
-              className={`rounded-full border px-3 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-40 ${
+              className={`a3d-rise rounded-full border px-3 py-1 text-xs transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 ${
                 s.action === "statue"
-                  ? "border-purple-700/70 text-purple-300 hover:border-purple-500 hover:text-purple-100"
-                  : "border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:text-white"
+                  ? "border-[var(--beam-2)]/50 text-[var(--beam-2)] hover:border-[var(--beam-2)] hover:bg-[var(--beam-2)]/10"
+                  : "border-[var(--rule)] text-neutral-300 hover:border-[var(--beam-1)]/50 hover:text-[var(--beam-1)]"
               }`}
             >
               {s.action === "statue" ? "🗿 " : "✨ "}
@@ -236,7 +238,7 @@ export default function ChatPanel({
       )}
 
       <form
-        className="flex items-end gap-2 border-t border-neutral-800 p-3"
+        className="relative z-10 flex items-end gap-2 border-t border-[var(--rule)] bg-[var(--panel)]/60 p-3 backdrop-blur"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -257,7 +259,7 @@ export default function ChatPanel({
           type="button"
           onClick={() => fileInputRef.current?.click()}
           title="Attach an STL, OpenSCAD file, or photo"
-          className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+          className="rounded-lg border border-[var(--rule)] px-3 py-2 text-sm text-neutral-400 transition hover:border-[var(--beam-1)]/50 hover:text-[var(--beam-1)]"
         >
           +
         </button>
@@ -272,13 +274,13 @@ export default function ChatPanel({
           }}
           rows={2}
           placeholder="Describe an object… (Enter to send)"
-          className="min-h-[3rem] flex-1 resize-none rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-500 focus:outline-none"
+          className="a3d-scroll min-h-[3rem] flex-1 resize-none rounded-lg border border-[var(--rule)] bg-black/40 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 transition focus:border-[var(--beam-1)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--beam-1)]/25"
         />
         {busy ? (
           <button
             type="button"
             onClick={onStop}
-            className="rounded-lg bg-neutral-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-600"
+            className="rounded-lg border border-[var(--rule-strong)] bg-black/40 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:bg-black/70"
           >
             Stop
           </button>
@@ -286,9 +288,10 @@ export default function ChatPanel({
           <button
             type="submit"
             disabled={!input.trim()}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
+            className="a3d-sheen rounded-lg bg-gradient-to-br from-[var(--beam-1)] to-[var(--beam-2)] px-4 py-2 text-sm font-semibold text-neutral-950 shadow-lg shadow-cyan-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-none disabled:bg-white/10 disabled:text-neutral-500 disabled:shadow-none"
           >
-            Send
+            <span className="a3d-sheen-bar" aria-hidden="true" />
+            <span className="relative">Send</span>
           </button>
         )}
       </form>

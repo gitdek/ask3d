@@ -35,6 +35,7 @@ import {
   saveHistoryItem,
   type HistoryMeta,
 } from "@/lib/history";
+import BrandMark from "./brand-mark";
 import ChatPanel from "./chat-panel";
 import { isAutoRepairMessage, uiMessageText } from "./chat-message";
 import HistoryPanel from "./history-panel";
@@ -891,39 +892,53 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
   nameHintRef.current = userText(lastUserMessage);
 
   return (
-    <div className="relative flex h-dvh flex-col bg-neutral-950 text-neutral-100">
-      <header className="flex shrink-0 items-center justify-between border-b border-neutral-800 px-4 py-2">
-        <h1 className="text-sm font-bold tracking-widest">
-          ask<span className="text-blue-500">3d</span>
+    <div className="relative flex h-dvh flex-col bg-[var(--background)] text-[var(--foreground)]">
+      <header className="relative z-20 flex shrink-0 items-center justify-between gap-3 border-b border-[var(--rule)] bg-[var(--panel)]/80 px-4 py-2.5 backdrop-blur">
+        <h1 className="flex items-center gap-2.5">
+          <BrandMark size={28} />
+          <span className="text-sm font-bold tracking-[0.2em]">
+            ask<span className="a3d-beam-text">3d</span>
+          </span>
         </h1>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setHistoryOpen((o) => !o)}
             title="Past photos and models, kept across reloads"
-            className={`rounded px-2 py-0.5 text-xs transition ${
+            className={`rounded-full border px-3 py-1 text-xs transition ${
               historyOpen
-                ? "bg-neutral-600 text-white"
-                : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                ? "border-[var(--beam-1)]/50 bg-[var(--beam-1)]/10 text-[var(--beam-1)]"
+                : "border-[var(--rule)] text-neutral-400 hover:border-[var(--rule-strong)] hover:text-neutral-100"
             }`}
           >
-            Library{historyItems.length > 0 && ` · ${historyItems.length}`}
+            Library
+            {historyItems.length > 0 && (
+              <span className="ml-1.5 tabular-nums opacity-70">{historyItems.length}</span>
+            )}
           </button>
           <select
             value={statueEngine}
             onChange={(e) => setStatueEngine(e.target.value as StatueEngine)}
             title="Which engine generates photo statues"
-            className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300 focus:outline-none"
+            className="hidden rounded-full border border-[var(--rule)] bg-transparent px-3 py-1 text-xs text-neutral-400 transition hover:border-[var(--rule-strong)] focus:outline-none sm:block"
           >
             <option value="hunyuan">statues: local · unlimited · 1–4 photos</option>
             <option value="space">statues: cloud · best, ~2/day</option>
             <option value="hunyuan-space">statues: cloud · multi-photo</option>
           </select>
-          <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-400">
+          <span className="hidden items-center gap-1.5 rounded-full border border-[var(--rule)] px-3 py-1 font-mono text-xs text-neutral-500 md:inline-flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--beam-3)]" />
             {providerLabel}
           </span>
         </div>
       </header>
+      {/* Hairline under the header that runs while the machine is working —
+          the same signal as the pipeline rail, readable from across a room. */}
+      <div className="relative z-20 h-px shrink-0 overflow-hidden bg-[var(--rule)]">
+        {chatBusy || compilerStatus === "compiling" || statueProgress ? (
+          <span className="absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-transparent via-[var(--beam-1)] to-transparent a3d-travel" />
+        ) : null}
+      </div>
       {historyOpen && (
         <HistoryPanel
           items={historyItems}

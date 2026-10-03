@@ -17,7 +17,8 @@ const STYLES: Record<PillState["kind"], string> = {
   error: "bg-red-600/80 text-white",
 };
 
-function label(state: PillState): string {
+/** Shared with PipelineRail, which renders the same text beside the stages. */
+export function pillLabel(state: PillState): string {
   switch (state.kind) {
     case "idle":
       return "Idle";
@@ -40,7 +41,7 @@ function label(state: PillState): string {
 export default function StatusPill({ state }: { state: PillState }) {
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-medium shadow ${STYLES[state.kind]}`}>
-      {label(state)}
+      {pillLabel(state)}
     </span>
   );
 }
