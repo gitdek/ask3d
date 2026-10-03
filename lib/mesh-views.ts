@@ -47,11 +47,13 @@ export interface MeshViews {
 
 type Box = { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } };
 
-const VIEW = 300; // px per view, before the gutter
-const PAD = 38; // room for the axis labels
+// 300px over an 80mm model is under 4px/mm, which is not enough to read a
+// feature's centre to the millimetre the mask needs. 512 is.
+const VIEW = 512; // px per view, before the gutter
+const PAD = 44; // room for the axis labels
 const GRID_MM = 10;
 
-/** Nice round step so a 300 px view never turns into a hatch of labels. */
+/** Nice round step so a view never turns into a hatch of labels. */
 function gridStep(span: number): number {
   for (const step of [GRID_MM, 20, 25, 50, 100]) if (span / step <= 12) return step;
   return 200;
@@ -189,11 +191,20 @@ export async function renderMeshViews(bytes: ArrayBuffer, box: Box): Promise<Mes
 
       ctx.strokeStyle = "rgba(120,200,255,0.26)";
       ctx.lineWidth = 1;
-      ctx.font = "11px ui-monospace, monospace";
+      ctx.font = "13px ui-monospace, monospace";
       ctx.fillStyle = "#8ba6c0";
 
       // Horizontal: `from` is the left edge, so t runs straight across.
       const hStep = gridStep(Math.abs(spec.horiz.to - spec.horiz.from));
+      ctx.strokeStyle = "rgba(120,200,255,0.11)";
+      for (const mm of ticks(spec.horiz, hStep / 2)) {
+        const t = (mm - spec.horiz.from) / (spec.horiz.to - spec.horiz.from);
+        ctx.beginPath();
+        ctx.moveTo(x0 + t * VIEW, y0);
+        ctx.lineTo(x0 + t * VIEW, y0 + VIEW);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(120,200,255,0.26)";
       for (const mm of ticks(spec.horiz, hStep)) {
         const t = (mm - spec.horiz.from) / (spec.horiz.to - spec.horiz.from);
         const px = x0 + t * VIEW;
@@ -202,11 +213,20 @@ export async function renderMeshViews(bytes: ArrayBuffer, box: Box): Promise<Mes
         ctx.lineTo(px, y0 + VIEW);
         ctx.stroke();
         ctx.textAlign = "center";
-        ctx.fillText(String(Math.round(mm)), px, y0 + VIEW + 14);
+        ctx.fillText(String(Math.round(mm)), px, y0 + VIEW + 16);
       }
 
       // Vertical: `from` is the BOTTOM edge, and canvas y grows downward.
       const vStep = gridStep(Math.abs(spec.vert.to - spec.vert.from));
+      ctx.strokeStyle = "rgba(120,200,255,0.11)";
+      for (const mm of ticks(spec.vert, vStep / 2)) {
+        const t = (mm - spec.vert.from) / (spec.vert.to - spec.vert.from);
+        ctx.beginPath();
+        ctx.moveTo(x0, y0 + (1 - t) * VIEW);
+        ctx.lineTo(x0 + VIEW, y0 + (1 - t) * VIEW);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(120,200,255,0.26)";
       for (const mm of ticks(spec.vert, vStep)) {
         const t = (mm - spec.vert.from) / (spec.vert.to - spec.vert.from);
         const py = y0 + (1 - t) * VIEW;
@@ -221,7 +241,7 @@ export async function renderMeshViews(bytes: ArrayBuffer, box: Box): Promise<Mes
       ctx.strokeStyle = "rgba(255,255,255,0.22)";
       ctx.strokeRect(x0, y0, VIEW, VIEW);
       ctx.fillStyle = "#d6dde6";
-      ctx.font = "bold 12px ui-monospace, monospace";
+      ctx.font = "bold 14px ui-monospace, monospace";
       ctx.textAlign = "left";
       ctx.fillText(`${spec.title}  ${spec.horiz.name} \u2192  ${spec.vert.name} \u2191`, x0, y0 - 12);
     });
