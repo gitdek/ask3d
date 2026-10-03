@@ -69,20 +69,61 @@ const EXAMPLES: Example[] = [
   },
 ];
 
-export default function ExamplePrompts({ onPick }: { onPick: (prompt: string) => void }) {
+export default function ExamplePrompts({
+  onPick,
+  onPickPhoto,
+}: {
+  onPick: (prompt: string) => void;
+  onPickPhoto: () => void;
+}) {
   return (
     <div className="mx-auto mt-6 w-full max-w-md px-1">
       <p className="a3d-rise text-center text-sm text-neutral-300">
         Describe an object and I&apos;ll design it for 3D printing.
       </p>
-      <p
-        className="a3d-rise mt-1 text-center text-xs text-neutral-600"
-        style={{ animationDelay: "60ms" }}
+
+      {/* The statue path is the least guessable thing the app does, so it gets
+          a card of its own rather than living behind a "+" in the composer. */}
+      <button
+        type="button"
+        onClick={onPickPhoto}
+        className="a3d-rise group mt-4 flex w-full items-center gap-3 rounded-xl border border-[var(--beam-2)]/35 bg-[var(--beam-2)]/[0.07] p-3 text-left transition hover:-translate-y-0.5 hover:border-[var(--beam-2)]/70 hover:bg-[var(--beam-2)]/[0.12]"
+        style={{ animationDelay: "90ms" }}
       >
-        or start from one of these
+        <span className="shrink-0 text-[var(--beam-2)] transition group-hover:scale-110">
+          <svg viewBox="0 0 54 32" width="52" height="30" aria-hidden="true">
+            <g {...s}>
+              {/* photo */}
+              <rect x="1" y="6" width="20" height="20" rx="3" />
+              <circle cx="7.5" cy="12.5" r="2" />
+              <path d="M2 22 L9 15 L14 20 L17 17.5 L20 20" />
+              {/* becomes */}
+              <path d="M25 16 L32 16 M29 13 L32 16 L29 19" strokeOpacity="0.75" />
+              {/* a solid */}
+              <path d="M44 4 L52 9 L52 23 L44 28 L36 23 L36 9 Z" />
+              <path d="M44 4 L44 16 M36 9 L44 16 M52 9 L44 16" strokeOpacity="0.55" />
+            </g>
+          </svg>
+        </span>
+        <span className="min-w-0">
+          <span className="block text-xs font-medium leading-snug text-[var(--beam-2)]">
+            Turn a photo into a 3D model
+          </span>
+          <span className="mt-0.5 block text-[11px] leading-snug text-neutral-400">
+            Upload 1–4 photos of a real object — or drop them anywhere here — and it is sculpted
+            into a printable mesh.
+          </span>
+        </span>
+      </button>
+
+      <p
+        className="a3d-rise mt-5 mb-2 text-center text-[11px] font-medium uppercase tracking-wider text-neutral-600"
+        style={{ animationDelay: "150ms" }}
+      >
+        or describe one
       </p>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         {EXAMPLES.map((example, i) => (
           <button
             key={example.prompt}
