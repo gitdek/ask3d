@@ -53,3 +53,11 @@ public/statue*.stl
 statue-service/hunyuan-mlx/
 .logs/
 .library/
+
+# statue-service scratch output (meshes, materials, exports)
+statue-service/*.3mf
+statue-service/*.mtl
+statue-service/*.ply
+
+# portfolio capture set — personal screenshots, not part of the app
+/design/

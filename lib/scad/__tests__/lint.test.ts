@@ -45,7 +45,7 @@ describe("lintScad", () => {
 
   it("allows surface() of an uploaded heightmap and rejects others", () => {
     expect(
-      lintScad('surface(file = "/uploads/turing.dat", center = true);', ["/uploads/turing.dat"]),
+      lintScad('surface(file = "/uploads/photo.dat", center = true);', ["/uploads/photo.dat"]),
     ).toEqual([]);
     expect(lintScad('surface(file = "other.dat");')).toHaveLength(1);
   });
@@ -53,9 +53,9 @@ describe("lintScad", () => {
   it("accepts both calling conventions for import() and surface()", () => {
     expect(lintScad('import(file = "/uploads/dog.stl");', ["/uploads/dog.stl"])).toEqual([]);
     expect(
-      lintScad('surface("/uploads/turing.dat", center = true);', ["/uploads/turing.dat"]),
+      lintScad('surface("/uploads/photo.dat", center = true);', ["/uploads/photo.dat"]),
     ).toEqual([]);
-    expect(lintScad('surface("/etc/passwd");', ["/uploads/turing.dat"])).toHaveLength(1);
+    expect(lintScad('surface("/etc/passwd");', ["/uploads/photo.dat"])).toHaveLength(1);
     expect(lintScad('import(file = "/etc/passwd");', ["/uploads/dog.stl"])).toHaveLength(1);
   });
 

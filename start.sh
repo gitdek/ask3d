@@ -29,12 +29,21 @@ for arg in "$@"; do
   esac
 done
 
-port_alive() { curl -s -m 1 -o /dev/null "http://127.0.0.1:$1$2" 2>/dev/null; }
+# port, path, [fingerprint]. Without a fingerprint this only proves *something*
+# answers; with one it proves the answer is ours. Another project squatting the
+# port used to read as "already running".
+port_alive() {
+  if [[ -n ${3:-} ]]; then
+    curl -s -m 2 "http://127.0.0.1:$1$2" 2>/dev/null | grep -q "$3"
+  else
+    curl -s -m 1 -o /dev/null "http://127.0.0.1:$1$2" 2>/dev/null
+  fi
+}
 
-start_one() { # name, pidfile, logfile, healthport, healthpath, cmd...
-  local name=$1 pidfile=$2 logfile=$3 port=$4 path=$5
-  shift 5
-  if port_alive "$port" "$path"; then
+start_one() { # name, pidfile, logfile, healthport, healthpath, fingerprint, cmd...
+  local name=$1 pidfile=$2 logfile=$3 port=$4 path=$5 want=$6
+  shift 6
+  if port_alive "$port" "$path" "$want"; then
     echo "✓ $name already running on :$port"
     return
   fi
@@ -49,18 +58,22 @@ start_one() { # name, pidfile, logfile, healthport, healthpath, cmd...
     echo $! >"$pidfile"
   )
   for _ in $(seq 1 60); do
-    if port_alive "$port" "$path"; then
+    if port_alive "$port" "$path" "$want"; then
       echo "✓ $name up on :$port"
       return
     fi
     sleep 1
   done
-  echo "✗ $name did not come up within 60s — check $logfile" >&2
+  if [[ -n $want ]] && port_alive "$port" "$path"; then
+    echo "✗ :$port is answering, but it is not $name — something else owns that port." >&2
+  else
+    echo "✗ $name did not come up within 60s — check $logfile" >&2
+  fi
   exit 1
 }
 
-stop_one() { # name, pidfile, port, healthpath
-  local name=$1 pidfile=$2 port=$3 path=$4
+stop_one() { # name, pidfile, port, healthpath, fingerprint
+  local name=$1 pidfile=$2 port=$3 path=$4 want=${5:-}
   if [[ -f $pidfile ]]; then
     local pid pgid
     pid=$(cat "$pidfile")
@@ -84,7 +97,7 @@ stop_one() { # name, pidfile, port, healthpath
   # Wait for the port to actually free — an immediate re-start would see
   # the dying process still listening and wrongly skip its own launch.
   for _ in $(seq 1 20); do
-    port_alive "$port" "$path" || return 0
+    port_alive "$port" "$path" "$want" || return 0
     sleep 0.5
   done
   echo "! $name is still answering on :$port after 10s (started by hand? stop it yourself)" >&2
@@ -94,12 +107,12 @@ lan_ip() { ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/n
 
 case "$MODE" in
   start)
-    start_one "statue sidecar" "$PID_DIR/sidecar.pid" "$LOG_DIR/sidecar.log" 8765 /health \
+    start_one "statue sidecar" "$PID_DIR/sidecar.pid" "$LOG_DIR/sidecar.log" 8765 /health '"ok"' \
       uv run "$PWD/statue-service/server.py"
     if [[ $LAN == 1 ]]; then
-      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / npm run dev
+      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / '<title>ask3d' npm run dev
     else
-      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / npm run dev:local
+      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / '<title>ask3d' npm run dev:local
     fi
     echo
     echo "ask3d ready → http://localhost:3000"
@@ -112,12 +125,14 @@ case "$MODE" in
     command -v open >/dev/null && open http://localhost:3000
     ;;
   stop)
-    stop_one "web app" "$PID_DIR/web.pid" 3000 /
-    stop_one "statue sidecar" "$PID_DIR/sidecar.pid" 8765 /health
+    stop_one "web app" "$PID_DIR/web.pid" 3000 / '<title>ask3d'
+    stop_one "statue sidecar" "$PID_DIR/sidecar.pid" 8765 /health '"ok"' 
     ;;
   status)
-    port_alive 3000 / && echo "✓ web app on :3000" || echo "✗ web app not running"
-    port_alive 8765 /health && echo "✓ statue sidecar on :8765" || echo "✗ statue sidecar not running"
+    if port_alive 3000 / '<title>ask3d'; then echo "✓ web app on :3000"
+    elif port_alive 3000 /; then echo "✗ web app not running (:3000 is taken by another server)"
+    else echo "✗ web app not running"; fi
+    port_alive 8765 /health '"ok"' && echo "✓ statue sidecar on :8765" || echo "✗ statue sidecar not running"
     ;;
   logs)
     tail -n 40 -f "$LOG_DIR/web.log" "$LOG_DIR/sidecar.log"
