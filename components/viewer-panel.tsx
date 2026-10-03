@@ -37,6 +37,8 @@ interface ViewerPanelProps {
   colorParts: { hex: string; stl: ArrayBuffer }[] | null;
   /** Per-color renders still running — a 3MF exported now would be single-body. */
   colorPending?: boolean;
+  /** Why the colors didn't apply, if they didn't. */
+  colorIssue?: string | null;
   /** OpenSCAD warnings from the successful compile (dropped geometry, bad manifolds). */
   warnings?: ScadError[];
   pillState: PillState;
@@ -68,6 +70,7 @@ export default function ViewerPanel({
   stl,
   colorParts,
   colorPending = false,
+  colorIssue = null,
   warnings = [],
   pillState,
   viewerError,
@@ -151,6 +154,14 @@ export default function ViewerPanel({
                 className="a3d-rise pointer-events-auto cursor-help rounded-full border border-[var(--warn)]/30 bg-[var(--warn)]/10 px-3 py-1 text-xs font-medium text-[var(--warn)] shadow-lg backdrop-blur"
               >
                 ⚠ {warnings.length} compiler warning{warnings.length === 1 ? "" : "s"}
+              </span>
+            )}
+            {stl && colorIssue && !colorPending && (
+              <span
+                title={colorIssue}
+                className="a3d-rise pointer-events-auto max-w-[22rem] cursor-help truncate rounded-full border border-[var(--warn)]/30 bg-[var(--warn)]/10 px-3 py-1 text-xs font-medium text-[var(--warn)] shadow-lg backdrop-blur"
+              >
+                ⚠ {colorIssue}
               </span>
             )}
           </div>

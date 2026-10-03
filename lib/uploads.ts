@@ -6,8 +6,15 @@ export interface UploadedAsset {
   kind: "mesh" | "image" | "scad";
   /** Content written into the compiler FS (STL bytes or .dat heightmap text). */
   compileData?: ArrayBuffer | string;
-  /** Mesh bounding box in mm (meshes only). */
+  /** Mesh bounding box size in mm (meshes only). */
   dims?: { x: number; y: number; z: number };
+  /**
+   * Where the mesh actually sits, in mm (meshes only). A size alone is not
+   * enough to write coordinates against: statues come back centred in X/Y and
+   * floored at Z=0, so a program that assumes 0..size is offset by half the
+   * model and any mask it writes misses the geometry.
+   */
+  box?: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } };
   /** Heightmap grid size (images only). */
   heightmap?: { rows: number; cols: number };
   /** Downscaled JPEG data URL for the multimodal model (images only). */
@@ -88,17 +95,25 @@ function imageToHeightmapDat(img: HTMLImageElement): { dat: string; rows: number
   return { dat: lines.join("\n"), rows: height, cols: width };
 }
 
-async function meshDims(bytes: ArrayBuffer): Promise<{ x: number; y: number; z: number }> {
+export async function meshBox(bytes: ArrayBuffer): Promise<{
+  dims: { x: number; y: number; z: number };
+  box: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } };
+}> {
   const [{ STLLoader }, { Vector3 }] = await Promise.all([
     import("three/addons/loaders/STLLoader.js"),
     import("three"),
   ]);
   const geometry = new STLLoader().parse(bytes);
   geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox!;
   const size = new Vector3();
-  geometry.boundingBox!.getSize(size);
+  bounds.getSize(size);
+  const box = {
+    min: { x: bounds.min.x, y: bounds.min.y, z: bounds.min.z },
+    max: { x: bounds.max.x, y: bounds.max.y, z: bounds.max.z },
+  };
   geometry.dispose();
-  return { x: size.x, y: size.y, z: size.z };
+  return { dims: { x: size.x, y: size.y, z: size.z }, box };
 }
 
 /** Process a user-picked file into an uploadable asset. Throws with a readable message on unsupported input. */
@@ -111,7 +126,7 @@ export async function processUpload(file: File, takenPaths: ReadonlySet<string>)
       path: uploadPath(file.name, "stl", takenPaths),
       kind: "mesh",
       compileData: bytes,
-      dims: await meshDims(bytes),
+      ...(await meshBox(bytes)),
     };
   }
   if (lower.endsWith(".scad")) {
@@ -148,7 +163,15 @@ export function describeUpload(asset: UploadedAsset): string {
   const name = asset.name.replace(/[`\r\n]/g, "_");
   if (asset.kind === "mesh") {
     const d = asset.dims!;
-    return `- ${name}: 3D mesh, ${d.x.toFixed(1)} × ${d.y.toFixed(1)} × ${d.z.toFixed(1)} mm, use it with import("${asset.path}") — treat it as an opaque solid you can combine with, cut from, or add to.`;
+    const size = `${d.x.toFixed(1)} × ${d.y.toFixed(1)} × ${d.z.toFixed(1)} mm`;
+    // Where it sits matters as much as how big it is: every coordinate the
+    // model writes — a pedestal, a cut, a color mask — has to land inside
+    // this box or it misses the mesh and renders nothing.
+    const b = asset.box;
+    const frame = b
+      ? ` It occupies x ${b.min.x.toFixed(1)}..${b.max.x.toFixed(1)}, y ${b.min.y.toFixed(1)}..${b.max.y.toFixed(1)}, z ${b.min.z.toFixed(1)}..${b.max.z.toFixed(1)} mm in its own coordinates — do NOT assume 0..size; any coordinate you write outside that box misses the mesh entirely.`
+      : "";
+    return `- ${name}: 3D mesh, ${size}, use it with import("${asset.path}") — treat it as an opaque solid you can combine with, cut from, or add to.${frame}`;
   }
   if (asset.kind === "image") {
     const h = asset.heightmap!;

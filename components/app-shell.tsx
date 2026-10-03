@@ -14,7 +14,7 @@ import { lintScad } from "@/lib/scad/lint";
 import { parseScadWarnings } from "@/lib/scad/errors";
 import { buildRepairMessage } from "@/lib/ai/system-prompt";
 import type { CompileFile, ScadError } from "@/lib/scad/types";
-import { describeUpload, processUpload, uploadPath, type UploadedAsset } from "@/lib/uploads";
+import { describeUpload, meshBox, processUpload, uploadPath, type UploadedAsset } from "@/lib/uploads";
 import {
   createStatueTask,
   fetchLatestStatueTask,
@@ -209,9 +209,16 @@ export default function AppShell({
   // mirror keeps the download callback dependency-free.
   const [colorParts, setColorParts] = useState<ColorPart[] | null>(null);
   const colorPartsRef = useRef<ColorPart[] | null>(null);
+  // Why the colors didn't take. A color group whose mask misses the geometry
+  // renders empty, which used to leave a grey model and a plain "3MF" button
+  // with the reason only in the console — the one place nobody looks.
+  const [colorIssue, setColorIssue] = useState<string | null>(null);
   const applyColorParts = useCallback((parts: ColorPart[] | null) => {
     colorPartsRef.current = parts;
     setColorParts(parts);
+    // Every path that resets the viewer's colors comes through here, so this
+    // is the one place a stale explanation has to be dropped.
+    setColorIssue(null);
   }, []);
   // Each compile result/failure is handled exactly once: the effects below
   // re-fire on dependency identity churn, and a second pass would send a
@@ -271,30 +278,41 @@ export default function AppShell({
       setColorPending(true);
       void (async () => {
         const parts: ColorPart[] = [];
+        const empty: string[] = [];
         for (let k = 1; k <= colorPlan.length; k++) {
           if (viewerGenRef.current !== gen) return;
+          const name = colorPlan[k - 1];
           try {
             const stl = await compileOnce(
               colorPartSource(source, k),
               compileFilesOf(uploadsRef.current),
             );
             if (stl.byteLength >= 84 + 50) {
-              parts.push({ name: colorPlan[k - 1], hex: colorToHex(colorPlan[k - 1]), stl });
+              parts.push({ name, hex: colorToHex(name), stl });
+            } else {
+              empty.push(name);
             }
           } catch (error) {
-            console.warn(`[multi-color] part ${k} render failed:`, error);
+            // Overwhelmingly this is "Current top level object is empty":
+            // the group's mask doesn't intersect the geometry. Common on an
+            // imported mesh, whose interior the model cannot see.
+            empty.push(name);
+            console.warn(`[multi-color] part ${k} (${name}) render failed:`, error);
           }
         }
         if (viewerGenRef.current !== gen) return;
         setColorPending(false);
         if (parts.length >= 2) {
           applyColorParts(parts);
-          console.info(
-            `[multi-color] ${parts.length} color parts ready — 3MF will export per-color objects`,
-          );
+          if (empty.length) {
+            setColorIssue(
+              `${empty.join(" and ")} came out empty, so ${parts.length} of ${colorPlan.length} colors are showing. Ask for ${empty.length > 1 ? "those regions" : "that region"} to be placed differently.`,
+            );
+          }
         } else {
-          console.warn(
-            `[multi-color] only ${parts.length} color part(s) rendered — the 3MF stays single-body`,
+          applyColorParts(null);
+          setColorIssue(
+            `${empty.join(", ")} rendered empty, so the model stays one color. On an imported mesh that means the mask was aimed at a feature the model cannot see inside the import — ask it to split by region instead, e.g. "color it in three horizontal bands".`,
           );
         }
       })();
@@ -670,7 +688,9 @@ export default function AppShell({
         path: statuePath,
         kind: "mesh",
         compileData: statueStl,
-        dims,
+        // Not `dims` alone: a statue is centred in X/Y and floored at Z=0, so
+        // the model needs the box itself to aim color masks and cuts at it.
+        ...(await meshBox(statueStl)),
       };
       uploadsRef.current = [...uploadsRef.current, statueAsset];
       unannouncedRef.current.add(statuePath);
@@ -1005,6 +1025,7 @@ export default function AppShell({
             stl={stl}
             colorParts={colorParts}
             colorPending={colorPending}
+            colorIssue={colorIssue}
             warnings={warnings}
             pillState={pillState}
             viewerError={viewerError}
