@@ -104,9 +104,11 @@ extra views are concatenated into the conditioning, which fixes the body mass a
 single front photo forces the model to invent. Output is repaired to a
 watertight, upright, print-oriented mesh before it reaches the viewer.
 
-The weights are ~15 GB and Apple-silicon only, so they are **not** part of the
-clone — everything else works without them. Setup is in
-[`statue-service/README.md`](statue-service/README.md).
+One command turns it on — `./statue-service/setup.sh`, about a minute, any
+machine — which gets you the cloud engines on a free Hugging Face account. Add
+`--local-engine` on Apple silicon for unlimited on-device generation; that is
+the part with ~15 GB of weights, which is why it is opt-in rather than cloned.
+See [`statue-service/README.md`](statue-service/README.md).
 
 🎨 **Multi-colour** — ask for colours and the model structures the program into
 per-colour modules. The app re-renders each group in the background, tints the

@@ -34,6 +34,19 @@ TRELLIS_DIR = SERVICE_DIR / "trellis-mac"
 TRELLIS_PYTHON = TRELLIS_DIR / ".venv" / "bin" / "python"
 HUNYUAN_DIR = SERVICE_DIR / "hunyuan-mlx"
 HUNYUAN_PYTHON = HUNYUAN_DIR / ".venv" / "bin" / "python"
+SIDECAR_PYTHON = SERVICE_DIR / ".venv" / "bin" / "python"
+
+
+def tool_python() -> Path:
+    """Interpreter for mesh repair and the cloud generators.
+
+    Those need only numpy/trimesh/pymeshfix/manifold3d/gradio_client — small,
+    pure-pip, no GPU — so they live in the sidecar's own venv (setup.sh) and
+    work on any machine. Older installs kept them inside the trellis-mac venv,
+    so fall back to that rather than breaking a working setup. Resolved per
+    call so running setup.sh does not require a sidecar restart.
+    """
+    return SIDECAR_PYTHON if SIDECAR_PYTHON.exists() else TRELLIS_PYTHON
 MOCK = os.environ.get("STATUE_MOCK") == "1"
 PORT = int(os.environ.get("STATUE_PORT", "8765"))
 WORK_DIR = Path(tempfile.gettempdir()) / "ask3d-statue"
@@ -119,7 +132,7 @@ def repair_model(task: dict, glb_path: Path) -> None:
     summary = ""
     try:
         proc = subprocess.run(
-            [str(TRELLIS_PYTHON), str(SERVICE_DIR / "repair.py"), str(glb_path), str(repaired_path)],
+            [str(tool_python()), str(SERVICE_DIR / "repair.py"), str(glb_path), str(repaired_path)],
             capture_output=True,
             text=True,
             timeout=600,
@@ -183,12 +196,12 @@ def _generate(task: dict, image_path: Path, out_base: Path) -> None:
     #   "trellis": legacy trellis-mac on-device — erratic quality, kept
     #     for experiments only.
     mode = task.get("engine") or os.environ.get("STATUE_MODE", "space")
-    cwd = TRELLIS_DIR
+    cwd = SERVICE_DIR
     cmd_for_seed = None  # set by engines that support seed re-rolls
     if mode == "space":
         task["detail"] = "generating on HF ZeroGPU (full TRELLIS.2)…"
         cmd = [
-            str(TRELLIS_PYTHON),
+            str(tool_python()),
             str(SERVICE_DIR / "space_generate.py"),
             str(image_path),
             str(out_base.parent),
@@ -197,7 +210,7 @@ def _generate(task: dict, image_path: Path, out_base: Path) -> None:
         n = 1 + len(task.get("extra_images", []))
         task["detail"] = f"generating on HF ZeroGPU (Hunyuan3D-2.1, {n} photo{'s' if n > 1 else ''})…"
         cmd = [
-            str(TRELLIS_PYTHON),
+            str(tool_python()),
             str(SERVICE_DIR / "hunyuan_space_generate.py"),
             str(out_base.parent),
             f"front={image_path}",
@@ -264,6 +277,7 @@ def _generate(task: dict, image_path: Path, out_base: Path) -> None:
         # 32 sampler steps by default: the port's approximated compute paths
         # need more steps to converge than the upstream default of 12 —
         # at 12, thin structures come out as disconnected fragments.
+        cwd = TRELLIS_DIR
         cmd = [
             str(TRELLIS_PYTHON),
             "generate.py",
@@ -351,8 +365,11 @@ def health() -> dict:
         "mock": MOCK,
         "default_engine": os.environ.get("STATUE_MODE", "space"),
         "engines": {
-            "space": TRELLIS_PYTHON.exists(),
+            # The cloud engines only need the sidecar venv, so they are
+            # available to anyone who ran setup.sh — no 15 GB, any OS.
+            "space": tool_python().exists(),
             "hunyuan": HUNYUAN_PYTHON.exists(),
+            "trellis": TRELLIS_PYTHON.exists(),
         },
         "busy": busy_task() is not None,
     }
@@ -389,11 +406,20 @@ async def create_task(
     with tasks_lock:
         if busy_task() is not None:
             raise HTTPException(status_code=409, detail="A statue is already being generated")
-        needed = HUNYUAN_PYTHON if requested in ("hunyuan", "local") else TRELLIS_PYTHON
+        needed = (
+            HUNYUAN_PYTHON
+            if requested in ("hunyuan", "local")
+            else TRELLIS_PYTHON
+            if requested == "trellis"
+            else tool_python()
+        )
         if not MOCK and not needed.exists():
             raise HTTPException(
                 status_code=503,
-                detail=f"engine '{requested}' is not set up (missing {needed.parent.parent.name} venv)",
+                detail=(
+                    f"engine '{requested}' is not set up — run statue-service/setup.sh"
+                    + (" --local-engine" if requested in ("hunyuan", "local") else "")
+                ),
             )
         task_id = uuid.uuid4().hex[:12]
         tasks[task_id] = {

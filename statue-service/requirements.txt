@@ -1,0 +1,15 @@
+# The sidecar's own dependencies: mesh repair and the cloud generators.
+# Small, pure-pip, cross-platform — deliberately nothing that needs a GPU,
+# Apple silicon, or a 15 GB download. The optional local engine installs its
+# own, much heavier environment separately (see setup.sh --local-engine).
+numpy
+# trimesh needs a graph engine for connected_components; the old heavyweight
+# venv had scipy incidentally via torch, so this was easy to miss.
+scipy
+trimesh
+pymeshfix
+manifold3d
+fast-simplification
+gradio_client
+huggingface_hub
+Pillow

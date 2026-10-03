@@ -127,6 +127,9 @@ case "$MODE" in
       start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" "$WEB_PORT" / '<title>ask3d' npm run dev:local -- -p "$WEB_PORT"
     fi
     echo
+    if [[ ! -x statue-service/.venv/bin/python && ! -x statue-service/trellis-mac/.venv/bin/python ]]; then
+      echo "note: photo → 3D is off. Turn it on with:  ./statue-service/setup.sh"
+    fi
     echo "ask3d ready → http://localhost:$WEB_PORT"
     if [[ $LAN == 1 ]]; then
       ip=$(lan_ip)

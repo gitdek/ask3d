@@ -61,3 +61,6 @@ statue-service/*.ply
 
 # portfolio capture set — personal screenshots, not part of the app
 /design/
+
+# sidecar environment created by statue-service/setup.sh
+statue-service/.venv/

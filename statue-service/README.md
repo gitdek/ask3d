@@ -2,39 +2,44 @@
 
 The optional sidecar that turns photos of a real object into a printable mesh.
 
-**You do not need this to use ask3d.** The chat, the OpenSCAD compiler, the
-preview and the exports all work without it. Skip this file unless you want the
-photo → 3D model button.
+**ask3d works without this.** The chat, the compiler, the preview and the
+exports need nothing here. This file is only about the photo → 3D button.
 
-It is a separate install because the model weights are ~15 GB and the engine is
-Apple-silicon only, so bundling it would make a clone unusable for everyone who
-just wants to describe a bracket.
-
-## What you need
-
-- An Apple-silicon Mac (the local engine is an MLX port; there is no CUDA path)
-- ~20 GB of disk for weights
-- [`uv`](https://docs.astral.sh/uv/) for the sidecar itself: `brew install uv`
-
-## Install the local engine
+## Setup
 
 ```bash
-cd statue-service
-git clone https://github.com/dgrauet/Hunyuan3D-2.1-mlx hunyuan-mlx
-cd hunyuan-mlx
-python3.12 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/pip install rembg onnxruntime pymeshlab opencv-python-headless trimesh
+./statue-service/setup.sh
 ```
 
-The last line adds what ask3d needs on top of the port itself: `rembg` for
-background removal (the port composites on white and will otherwise reconstruct
-your kitchen), and `pymeshlab`/`trimesh` for the repair pass.
+About a minute, ~130 MB, and it works on **any machine** — Linux, Windows,
+Intel Macs included. That gets you mesh repair and the cloud generators, which
+need a free Hugging Face account for GPU quota:
 
-Weights download on the first generation, so expect that run to take a while.
+```bash
+statue-service/.venv/bin/hf auth login
+```
 
-`./start.sh` launches the sidecar automatically once `hunyuan-mlx/.venv` exists.
-The app's engine picker will show the local engine as available.
+### Unlimited, on-device (optional)
+
+```bash
+./statue-service/setup.sh --local-engine
+```
+
+Apple silicon only, and the weights are ~15 GB downloaded on your first
+generation. In exchange it is unlimited, private, and needs no account. That is
+why it is a separate flag rather than part of the clone: nobody who just wants
+to describe a bracket should pay 15 GB for it, and it cannot run at all on a
+machine without MLX.
+
+The script is idempotent — run it again any time, it only does what is missing.
+`./start.sh` picks up whichever engines exist and the app's header shows them.
+
+## Which engine
+
+| Engine | Needs | Limits |
+|---|---|---|
+| `space`, `hunyuan-space` (cloud) | `setup.sh` + a free HF account | ~2 generations/day |
+| `hunyuan` (on-device) | `setup.sh --local-engine`, Apple silicon | none |
 
 ## How ask3d uses it
 
