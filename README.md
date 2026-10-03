@@ -32,22 +32,25 @@ upload step — the compiler is a 10 MB WebAssembly module in your own tab.
 
 ```bash
 npm install
-cp .env.local.example .env.local   # add one API key
-./start.sh                         # http://localhost:3000
+./start.sh     # opens http://localhost:3000
 ```
 
-The default provider is Google Gemini, whose free tier needs no credit card
-(<https://aistudio.google.com>). OpenRouter and Anthropic are wired too — set
-`AI_PROVIDER` / `AI_MODEL` and the matching key.
+That is the whole setup. On first run the app asks for an API key in the
+interface and writes `.env.local` for you — no dotfile to find, no restart.
+Google Gemini is the default and its free tier needs no credit card; OpenRouter
+and Anthropic are one click away in the same dialog, and the badge in the header
+reopens it whenever you want to switch.
 
 ```bash
-./start.sh            # app + statue sidecar, also served on your LAN
-./start.sh --local    # loopback only
-./start.sh stop       # also kills any running generator (status, logs)
-npm test              # unit tests
+./start.sh                  # app + statue sidecar, also served on your LAN
+./start.sh --local          # loopback only
+./start.sh stop             # also kills any running generator (status, logs)
+WEB_PORT=3005 ./start.sh    # if something already owns :3000
+npm test                    # unit tests
 ```
 
-Requires Node >= 22.
+Requires Node >= 22. Prefer configuring by hand? Copy `.env.local.example` to
+`.env.local` and fill in one key instead.
 
 > [!WARNING]
 > **There is no login.** Anyone who can reach the server can spend your API key,
@@ -94,12 +97,16 @@ virtual filesystem and referenced with `import()`), a photo to become a
 `surface()` heightmap for reliefs and lithophanes, or a `.scad` file to edit.
 The lint only permits `import()`/`surface()` of files you actually uploaded.
 
-🗿 **Statues** — photos become real meshes through a local Hunyuan3D-2.1 MLX
-port: unlimited, a few minutes each on Apple silicon, no API. Attach two to four
-photos and the extra views are concatenated into the conditioning, which fixes
-the body mass a single front photo forces the model to invent. Output is
-repaired to a watertight, upright, print-oriented mesh before it reaches the
-viewer.
+🗿 **Statues** *(optional, extra install)* — photos of a real object become real
+meshes through a local Hunyuan3D-2.1 MLX port: unlimited, a few minutes each on
+Apple silicon, no API. Attach two to four angles of the same object and the
+extra views are concatenated into the conditioning, which fixes the body mass a
+single front photo forces the model to invent. Output is repaired to a
+watertight, upright, print-oriented mesh before it reaches the viewer.
+
+The weights are ~15 GB and Apple-silicon only, so they are **not** part of the
+clone — everything else works without them. Setup is in
+[`statue-service/README.md`](statue-service/README.md).
 
 🎨 **Multi-colour** — ask for colours and the model structures the program into
 per-colour modules. The app re-renders each group in the background, tints the

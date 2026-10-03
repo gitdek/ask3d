@@ -46,6 +46,7 @@ interface ChatPanelProps {
   onMakeStatue(path: string): void;
   suggestions: Suggestion[] | null;
   onSuggestion(s: Suggestion): void;
+  onOpenSetup(): void;
 }
 
 export default function ChatPanel({
@@ -62,6 +63,7 @@ export default function ChatPanel({
   onMakeStatue,
   suggestions,
   onSuggestion,
+  onOpenSetup,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [dragActive, setDragActive] = useState(false);
@@ -138,9 +140,19 @@ export default function ChatPanel({
           <div className="my-2 rounded-lg border border-red-800/60 bg-red-950/40 p-3 text-xs text-red-300">
             <p className="font-semibold">The model request failed.</p>
             <p className="mt-1 whitespace-pre-wrap">{humanizeChatError(error.message)}</p>
-            <p className="mt-1 text-red-400/80">
-              You may be rate limited — wait a moment and try again, or switch provider in .env.local.
-            </p>
+            {/^Missing |^Unknown AI_PROVIDER/.test(humanizeChatError(error.message)) ? (
+              <button
+                type="button"
+                onClick={onOpenSetup}
+                className="mt-2 rounded-lg border border-[var(--danger)]/40 px-3 py-1.5 text-xs font-medium text-red-200 transition hover:bg-[var(--danger)]/15"
+              >
+                Open model settings
+              </button>
+            ) : (
+              <p className="mt-1 text-red-400/80">
+                You may be rate limited — wait a moment and try again, or switch model in settings.
+              </p>
+            )}
           </div>
         )}
         <div ref={bottomRef} />

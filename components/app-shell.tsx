@@ -36,6 +36,8 @@ import {
   type HistoryMeta,
 } from "@/lib/history";
 import BrandMark from "./brand-mark";
+import SetupDialog from "./setup-dialog";
+import { type ProviderId } from "@/lib/ai/config";
 import ChatPanel from "./chat-panel";
 import { isAutoRepairMessage, uiMessageText } from "./chat-message";
 import HistoryPanel from "./history-panel";
@@ -138,7 +140,20 @@ function allowedPathsOf(uploads: UploadedAsset[]): string[] {
   return uploads.filter((u) => u.compileData !== undefined).map((u) => u.path);
 }
 
-export default function AppShell({ providerLabel }: { providerLabel: string }) {
+export default function AppShell({
+  providerLabel,
+  configured,
+  provider,
+}: {
+  providerLabel: string;
+  configured: boolean;
+  provider: ProviderId;
+}) {
+  // A missing key is the one thing that stops the app working at all, so the
+  // dialog opens itself on first run and cannot be dismissed until it is set.
+  const [isConfigured, setIsConfigured] = useState(configured);
+  const [setupOpen, setSetupOpen] = useState(!configured);
+  const [modelLabel, setModelLabel] = useState(providerLabel);
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -893,6 +908,16 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
 
   return (
     <div className="relative flex h-dvh flex-col bg-[var(--background)] text-[var(--foreground)]">
+      <SetupDialog
+        open={setupOpen}
+        dismissable={isConfigured}
+        initialProvider={provider}
+        onClose={() => setSetupOpen(false)}
+        onSaved={(p, m) => {
+          setModelLabel(`${p}/${m}`);
+          setIsConfigured(true);
+        }}
+      />
       <header className="relative z-20 flex shrink-0 items-center justify-between gap-3 border-b border-[var(--rule)] bg-[var(--panel)]/80 px-4 py-2.5 backdrop-blur">
         <h1 className="flex items-center gap-2.5">
           <BrandMark size={28} />
@@ -926,10 +951,18 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
             <option value="space">statues: cloud · best, ~2/day</option>
             <option value="hunyuan-space">statues: cloud · multi-photo</option>
           </select>
-          <span className="hidden items-center gap-1.5 rounded-full border border-[var(--rule)] px-3 py-1 font-mono text-xs text-neutral-500 md:inline-flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--beam-3)]" />
-            {providerLabel}
-          </span>
+          <button
+            type="button"
+            onClick={() => setSetupOpen(true)}
+            title="Change the model or API key"
+            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] px-3 py-1 font-mono text-xs text-neutral-500 transition hover:border-[var(--rule-strong)] hover:text-neutral-300"
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${isConfigured ? "bg-[var(--beam-3)]" : "bg-[var(--warn)]"}`}
+            />
+            <span className="hidden md:inline">{modelLabel}</span>
+            <span className="md:hidden">model</span>
+          </button>
         </div>
       </header>
       {/* Hairline under the header that runs while the machine is working —
@@ -964,6 +997,7 @@ export default function AppShell({ providerLabel }: { providerLabel: string }) {
             onMakeStatue={handleMakeStatue}
             suggestions={suggestions}
             onSuggestion={handleSuggestion}
+            onOpenSetup={() => setSetupOpen(true)}
           />
         </div>
         <div className="min-h-0 flex-1 md:h-full">

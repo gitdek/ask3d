@@ -13,6 +13,7 @@ cd "$(dirname "$0")"
 
 LOG_DIR=.logs
 PID_DIR=.logs
+WEB_PORT=${WEB_PORT:-3000}   # anything already on 3000? WEB_PORT=3005 ./start.sh
 mkdir -p "$LOG_DIR"
 
 MODE=start
@@ -47,6 +48,14 @@ start_one() { # name, pidfile, logfile, healthport, healthpath, fingerprint, cmd
     echo "✓ $name already running on :$port"
     return
   fi
+  # Something else is on this port. Starting anyway is worse than stopping:
+  # the dev server would quietly pick a different port, and we would be left
+  # health-checking one process while another runs unsupervised.
+  if [[ -n $want ]] && port_alive "$port" "$path"; then
+    echo "✗ :$port is taken by another server, so $name was not started." >&2
+    echo "  Free the port, or choose another:  WEB_PORT=3005 ./start.sh" >&2
+    exit 1
+  fi
   echo "… starting $name (log: $logfile)"
   # One previous log is kept per service instead of growing forever.
   [[ -f $logfile ]] && mv -f "$logfile" "$logfile.1"
@@ -64,11 +73,14 @@ start_one() { # name, pidfile, logfile, healthport, healthpath, fingerprint, cmd
     fi
     sleep 1
   done
-  if [[ -n $want ]] && port_alive "$port" "$path"; then
-    echo "✗ :$port is answering, but it is not $name — something else owns that port." >&2
-  else
-    echo "✗ $name did not come up within 60s — check $logfile" >&2
+  local spawned
+  spawned=$(cat "$pidfile" 2>/dev/null || true)
+  if [[ -n $spawned ]] && kill -0 "$spawned" 2>/dev/null; then
+    kill "$spawned" 2>/dev/null || true
+    rm -f "$pidfile"
+    echo "  (stopped the half-started process so it does not linger)" >&2
   fi
+  echo "✗ $name did not come up within 60s — check $logfile" >&2
   exit 1
 }
 
@@ -110,27 +122,27 @@ case "$MODE" in
     start_one "statue sidecar" "$PID_DIR/sidecar.pid" "$LOG_DIR/sidecar.log" 8765 /health '"ok"' \
       uv run "$PWD/statue-service/server.py"
     if [[ $LAN == 1 ]]; then
-      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / '<title>ask3d' npm run dev
+      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" "$WEB_PORT" / '<title>ask3d' npm run dev -- -p "$WEB_PORT"
     else
-      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" 3000 / '<title>ask3d' npm run dev:local
+      start_one "web app" "$PID_DIR/web.pid" "$LOG_DIR/web.log" "$WEB_PORT" / '<title>ask3d' npm run dev:local -- -p "$WEB_PORT"
     fi
     echo
-    echo "ask3d ready → http://localhost:3000"
+    echo "ask3d ready → http://localhost:$WEB_PORT"
     if [[ $LAN == 1 ]]; then
       ip=$(lan_ip)
-      [[ -n $ip ]] && echo "on your network → http://$ip:3000"
+      [[ -n $ip ]] && echo "on your network → http://$ip:$WEB_PORT"
     else
       echo "(this machine only — omit --local to use it from your phone)"
     fi
-    command -v open >/dev/null && open http://localhost:3000
+    command -v open >/dev/null && open "http://localhost:$WEB_PORT"
     ;;
   stop)
-    stop_one "web app" "$PID_DIR/web.pid" 3000 / '<title>ask3d'
+    stop_one "web app" "$PID_DIR/web.pid" "$WEB_PORT" / '<title>ask3d'
     stop_one "statue sidecar" "$PID_DIR/sidecar.pid" 8765 /health '"ok"' 
     ;;
   status)
-    if port_alive 3000 / '<title>ask3d'; then echo "✓ web app on :3000"
-    elif port_alive 3000 /; then echo "✗ web app not running (:3000 is taken by another server)"
+    if port_alive "$WEB_PORT" / '<title>ask3d'; then echo "✓ web app on :$WEB_PORT"
+    elif port_alive "$WEB_PORT" /; then echo "✗ web app not running (:$WEB_PORT is taken by another server)"
     else echo "✗ web app not running"; fi
     port_alive 8765 /health '"ok"' && echo "✓ statue sidecar on :8765" || echo "✗ statue sidecar not running"
     ;;
