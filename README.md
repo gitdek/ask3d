@@ -22,7 +22,7 @@ an STL or a Bambu-ready 3MF. Refine by talking — *"make the hole bigger"*,
 `stderr` goes back to the model and the program is fixed automatically.
 
 <p align="center">
-  <img src="docs/hero.png" alt="ask3d generating a hexagonal planter and saucer, with the OpenSCAD source beside the 3D preview" width="100%">
+  <img src="docs/hero.png" alt="ask3d answering 'a wall-mounted headphone hook with a cable channel' — the generated OpenSCAD beside the compiled 79 x 97 x 38 mm preview" width="100%">
 </p>
 
 Everything runs locally except the LLM call. No account, no render farm, no
@@ -51,6 +51,10 @@ npm test                    # unit tests
 
 Requires Node >= 22. Prefer configuring by hand? Copy `.env.local.example` to
 `.env.local` and fill in one key instead.
+
+<p align="center">
+  <img src="docs/start.png" alt="ask3d's first screen: starter prompts on the left, an empty build plate on the right" width="100%">
+</p>
 
 > [!WARNING]
 > **There is no login.** Anyone who can reach the server can spend your API key,
@@ -110,10 +114,18 @@ machine — which gets you the cloud engines on a free Hugging Face account. Add
 the part with ~15 GB of weights, which is why it is opt-in rather than cloned.
 See [`statue-service/README.md`](statue-service/README.md).
 
+<p align="center">
+  <img src="docs/statue.png" alt="A photographed figurine sculpted into a watertight 80 x 67 x 70 mm mesh on the build plate" width="62%">
+</p>
+
 🎨 **Multi-colour** — ask for colours and the model structures the program into
 per-colour modules. The app re-renders each group in the background, tints the
 preview, and exports a 3MF of one object with a part per colour, which a Bambu
 AMS maps straight onto filament slots.
+
+<p align="center">
+  <img src="docs/multicolor.png" alt="A two-colour pool ring-toss base, orange pole on a yellow plate, with the export button reading 3MF - 2 colors" width="100%">
+</p>
 
 📚 **Library** — photos, statues and compiled models are kept server-side with
 the prompt that produced them, so every browser pointed at the instance —
@@ -141,6 +153,11 @@ re-test.
   keeps the geometry.
 - Single-photo statues invent the side they cannot see. Eye-level shots on a
   plain background work best.
+- Colouring an **imported** mesh splits it by region, not by feature. The model
+  cannot see inside an `import()` — only the box it occupies — so "make the eyes
+  white" is a guess, while "colour it in three horizontal bands" is reliable. A
+  colour group whose region holds no geometry is reported in the viewer instead
+  of silently dropping the model back to one colour.
 
 ## Licence
 
