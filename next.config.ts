@@ -48,6 +48,17 @@ function ownHosts(): string[] {
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ownHosts(),
+  experimental: {
+    /**
+     * Requests through proxy.ts are truncated at 10MB by default, and a
+     * truncated multipart body reaches the library route as a malformed
+     * form — a 400 that reads like bad input rather than a size limit.
+     * Statues land at ~10MB and anything derived from one is larger, so
+     * the default silently ate exactly the models worth keeping. Match the
+     * route's own cap, so MAX_BLOB_BYTES stays the one place that decides.
+     */
+    proxyClientMaxBodySize: 200 * 1024 * 1024,
+  },
   async rewrites() {
     return [{ source: "/statue/:path*", destination: `${STATUE_SERVICE_URL}/:path*` }];
   },

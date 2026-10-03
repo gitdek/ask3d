@@ -213,7 +213,14 @@ export default function AppShell({
     (item: Omit<HistoryMeta, "id" | "createdAt" | "size">, bytes: ArrayBuffer) => {
       void saveHistoryItem(item, bytes)
         .then(refreshHistory)
-        .catch((error) => console.warn("library save failed:", error));
+        .catch((error: unknown) => {
+          // Console-only meant a model could fail to save and the only sign
+          // was its absence from a shelf nobody checks straight away.
+          console.warn("library save failed:", error);
+          setUploadError(
+            `${item.name} wasn't saved to the library (${error instanceof Error ? error.message : String(error)}). It's still in the viewer — download it before you clear.`,
+          );
+        });
     },
     [refreshHistory],
   );
