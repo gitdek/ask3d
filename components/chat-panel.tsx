@@ -6,12 +6,7 @@ import type { UploadedAsset } from "@/lib/uploads";
 import type { StatueProgress, Suggestion } from "./app-shell";
 import ChatMessage from "./chat-message";
 import WireframeDrift from "./wireframe-drift";
-
-const EXAMPLE_PROMPTS = [
-  "a phone stand at a 60° angle",
-  "a hexagonal planter, 80mm wide",
-  "a cable clip for a 5mm cable",
-];
+import ExamplePrompts from "./example-prompts";
 
 /** The route returns {"error": "..."} JSON; show just the message. */
 function humanizeChatError(message: string): string {
@@ -127,25 +122,7 @@ export default function ChatPanel({
         </div>
       )}
       <div className="a3d-scroll relative z-10 min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        {messages.length === 0 && (
-          <div className="mt-8 space-y-3 text-center">
-            <p className="a3d-rise text-sm text-neutral-300">
-              Describe an object and I&apos;ll design it for 3D printing.
-            </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {EXAMPLE_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  onClick={() => onSend(prompt)}
-                  className="a3d-rise rounded-full border border-[var(--rule)] px-3 py-1 text-xs text-neutral-400 transition hover:-translate-y-0.5 hover:border-[var(--beam-1)]/50 hover:text-[var(--beam-1)]"
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {messages.length === 0 && <ExamplePrompts onPick={onSend} />}
         {messages.map((message, i) => (
           <ChatMessage
             key={message.id}
