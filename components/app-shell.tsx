@@ -812,8 +812,8 @@ export default function AppShell({
       if (!engineReady) {
         throw new Error(
           statueEngine === "hunyuan"
-            ? "The local engine is not set up — see the hunyuan-mlx section of the statue-service README."
-            : "Cloud engines need the trellis-mac venv + a Hugging Face login (see statue-service README).",
+            ? "Photo-to-3D needs a one-time local install (~15GB, Apple silicon). Setup is in statue-service/README.md — everything else works without it."
+            : "The cloud engines need a Hugging Face login — see statue-service/README.md.",
         );
       }
       if (health.busy) throw new Error("The statue service is already generating a model.");
