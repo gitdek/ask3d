@@ -8,6 +8,7 @@
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-0b0b0f?style=flat-square&labelColor=0b0b0f&color=a78bfa">
   <img alt="three.js" src="https://img.shields.io/badge/three.js-r185-0b0b0f?style=flat-square&labelColor=0b0b0f&color=a78bfa">
   <img alt="OpenSCAD WebAssembly" src="https://img.shields.io/badge/OpenSCAD-WebAssembly-0b0b0f?style=flat-square&labelColor=0b0b0f&color=34d399">
+  <img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-0b0b0f?style=flat-square&labelColor=0b0b0f&color=34d399">
 </p>
 
 <p align="center">
@@ -134,6 +135,13 @@ re-test.
 
 ## Licence
 
-No licence file yet — add one before reusing this. Third-party components keep
-their own terms: OpenSCAD is GPL-2.0-or-later, and the statue models carry
-their own licences, not all of which permit commercial use.
+[MIT](LICENSE) — use it for anything, commercial included, no permission needed.
+
+Bundled third-party components keep their own terms, which MIT does not
+override:
+
+- **OpenSCAD** (`public/openscad/`) is GPL-2.0-or-later. The binaries are the
+  unmodified official WebAssembly snapshot, loaded at runtime by our own
+  worker; see `public/openscad/NOTICE.txt`.
+- **Statue models** (optional sidecar) carry their own licences, and not all of
+  them permit commercial use. Check before you ship anything built on them.
