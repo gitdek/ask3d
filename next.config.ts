@@ -22,7 +22,13 @@ const STATUE_SERVICE_URL = (process.env.STATUE_SERVICE_URL ?? "http://127.0.0.1:
  * behind the guard in proxy.ts regardless.
  */
 function ownHosts(): string[] {
-  const hosts = new Set<string>();
+  // Loopback: Next allows "localhost" by default but not the literal
+  // addresses, and opening 127.0.0.1 is an ordinary thing to do — it is
+  // what `curl` prints, what a bookmark may hold, and what a second app
+  // on the machine will link to. Without these the page loads and every
+  // button is dead, which looks like a broken app rather than a blocked
+  // origin.
+  const hosts = new Set<string>(["127.0.0.1", "[::1]", "::1"]);
   for (const addresses of Object.values(os.networkInterfaces())) {
     for (const address of addresses ?? []) {
       if (!address.internal && String(address.family).includes("4")) hosts.add(address.address);
