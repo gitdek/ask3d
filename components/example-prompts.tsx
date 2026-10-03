@@ -110,8 +110,8 @@ export default function ExamplePrompts({
             Turn a photo into a 3D model
           </span>
           <span className="mt-0.5 block text-[11px] leading-snug text-neutral-400">
-            Upload 1–4 photos of a real object — or drop them anywhere here — and it is sculpted
-            into a printable mesh.
+            Upload a photo of a real object — or drop it anywhere here. Add up to 4 angles of the
+            same thing and it is sculpted into a printable mesh.
           </span>
         </span>
       </button>

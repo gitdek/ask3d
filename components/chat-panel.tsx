@@ -77,6 +77,8 @@ export default function ChatPanel({
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
+  const photoCount = uploads.filter((u) => u.kind === "image").length;
+
   const submit = () => {
     const text = input.trim();
     if (!text || busy) return;
@@ -173,10 +175,18 @@ export default function ChatPanel({
                         type="button"
                         disabled={statueProgress !== null}
                         onClick={() => onMakeStatue(u.path)}
-                        title="Generate a 3D statue from this photo (local TRELLIS.2, ~5 min)"
-                        className="rounded bg-purple-700/60 px-1.5 py-0.5 text-purple-200 transition hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={
+                          photoCount > 1
+                            ? `Sculpt a 3D model using this photo as the front view, plus the other ${photoCount - 1} as extra angles (runs locally, a few minutes)`
+                            : "Sculpt this photo into a printable 3D model (runs locally, a few minutes)"
+                        }
+                        className="inline-flex items-center gap-1 rounded bg-[var(--beam-2)]/25 px-1.5 py-0.5 font-medium text-[var(--beam-2)] transition hover:bg-[var(--beam-2)]/45 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        statue
+                        <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M8 1.5 L14 5 L14 11 L8 14.5 L2 11 L2 5 Z" />
+                          <path d="M8 1.5 L8 8 M2 5 L8 8 M14 5 L8 8" strokeOpacity="0.6" />
+                        </svg>
+                        Sculpt 3D
                       </button>
                     ))}
                   <button
@@ -190,6 +200,25 @@ export default function ChatPanel({
                 </span>
               ))}
             </div>
+          )}
+          {photoCount > 0 && statueProgress === null && (
+            <p className="mt-2 text-[11px] leading-snug text-neutral-500">
+              {photoCount === 1 ? (
+                <>
+                  Press <span className="text-[var(--beam-2)]">Sculpt 3D</span> to turn this photo
+                  into a printable mesh. Add more angles of the same object for a better result.
+                </>
+              ) : (
+                <>
+                  Press <span className="text-[var(--beam-2)]">Sculpt 3D</span> on the photo you
+                  want as the <span className="text-neutral-300">front view</span> —{" "}
+                  {photoCount === 2
+                    ? "the other is used as an extra angle"
+                    : `the other ${photoCount - 1} are used as extra angles`}{" "}
+                  of the same object.
+                </>
+              )}
+            </p>
           )}
           {uploadError && <p className="mt-1 text-xs text-red-400">{uploadError}</p>}
         </div>
