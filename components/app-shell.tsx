@@ -14,7 +14,7 @@ import { lintScad } from "@/lib/scad/lint";
 import { parseScadWarnings } from "@/lib/scad/errors";
 import { buildRepairMessage } from "@/lib/ai/system-prompt";
 import type { CompileFile, ScadError } from "@/lib/scad/types";
-import { describeUpload, meshBox, processUpload, uploadPath, type UploadedAsset } from "@/lib/uploads";
+import { describeUpload, meshAsset, processUpload, uploadPath, type UploadedAsset } from "@/lib/uploads";
 import {
   createStatueTask,
   fetchLatestStatueTask,
@@ -55,6 +55,12 @@ export interface Suggestion {
   action: "chat" | "statue";
   /** Upload the suggestion refers to (statue actions run on it). */
   path: string;
+  /**
+   * Re-attach the upload's images to this message. A chip clicked long after
+   * the upload was announced would otherwise ask the model to match colours
+   * against pictures it can no longer see.
+   */
+  reannounce?: boolean;
 }
 
 /** Instant generic suggestions shown while the model looks at the photo. */
@@ -78,6 +84,18 @@ function staticSuggestions(asset: UploadedAsset): Suggestion[] {
   }
   if (asset.kind === "mesh") {
     return [
+      ...(asset.sourcePhotoUrl
+        ? [
+            {
+              label: "Colour it like the photo",
+              prompt:
+                "colour this model to match the photo it was sculpted from. Use the attached views to locate each feature, group the geometry into 2-4 printable colour regions, and pick the closest supported colour name for each.",
+              action: "chat" as const,
+              path: asset.path,
+              reannounce: true,
+            },
+          ]
+        : []),
       {
         label: "Mount it on a pedestal",
         prompt: "mount the uploaded model on a round pedestal, 15mm tall, with a smooth chamfer",
@@ -541,14 +559,29 @@ export default function AppShell({
       if (fresh.length > 0) {
         fullText += `\n\n[attached files]\n${fresh.map(describeUpload).join("\n")}`;
       }
-      const imageParts: FileUIPart[] = fresh
-        .filter((u) => u.imageDataUrl !== undefined)
-        .map((u) => ({
-          type: "file",
-          mediaType: "image/jpeg",
-          filename: u.name,
-          url: u.imageDataUrl!,
-        }));
+      const imageParts: FileUIPart[] = fresh.flatMap((u) => {
+        const parts: FileUIPart[] = [];
+        if (u.imageDataUrl !== undefined) {
+          parts.push({
+            type: "file",
+            mediaType: "image/jpeg",
+            // A mesh rides along as rendered views, not as itself — say so, or
+            // the model reads the .stl name and thinks it was handed a picture.
+            filename: u.kind === "mesh" ? `${u.name} — rendered views` : u.name,
+            url: u.imageDataUrl,
+          });
+        }
+        // A statue's own photo: the only colour reference that exists for it.
+        if (u.sourcePhotoUrl !== undefined) {
+          parts.push({
+            type: "file",
+            mediaType: "image/jpeg",
+            filename: `${u.name} — source photo`,
+            url: u.sourcePhotoUrl,
+          });
+        }
+        return parts;
+      });
       if (imageParts.length > 0) sendMessage({ text: fullText, files: imageParts });
       else sendMessage({ text: fullText });
     },
@@ -689,8 +722,14 @@ export default function AppShell({
         kind: "mesh",
         compileData: statueStl,
         // Not `dims` alone: a statue is centred in X/Y and floored at Z=0, so
-        // the model needs the box itself to aim color masks and cuts at it.
-        ...(await meshBox(statueStl)),
+        // the model needs the box — and rendered views of what is inside it —
+        // to aim color masks and cuts at anything.
+        ...(await meshAsset(statueStl)),
+        // The mesh is untextured; keep the photo so its colours can be
+        // transferred later, long after the photo left the conversation.
+        sourcePhotoUrl: chipPath
+          ? uploadsRef.current.find((u) => u.path === chipPath)?.imageDataUrl
+          : undefined,
       };
       uploadsRef.current = [...uploadsRef.current, statueAsset];
       unannouncedRef.current.add(statuePath);
@@ -873,7 +912,10 @@ export default function AppShell({
       setSuggestions(null);
       suggestionsPathRef.current = null;
       if (s.action === "statue") void handleMakeStatue(s.path);
-      else if (s.prompt) handleSend(s.prompt);
+      else if (s.prompt) {
+        if (s.reannounce) unannouncedRef.current.add(s.path);
+        handleSend(s.prompt);
+      }
     },
     [handleMakeStatue, handleSend],
   );

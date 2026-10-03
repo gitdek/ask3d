@@ -15,6 +15,14 @@ export interface UploadedAsset {
    * model and any mask it writes misses the geometry.
    */
   box?: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } };
+  /** How to read the rendered views that ride along with a mesh. */
+  viewLegend?: string;
+  /**
+   * The photo a statue was sculpted from. The mesh itself carries no colour,
+   * so this is the only record of what the real object looked like — kept so
+   * "colour it like the photo" has something to look at.
+   */
+  sourcePhotoUrl?: string;
   /** Heightmap grid size (images only). */
   heightmap?: { rows: number; cols: number };
   /** Downscaled JPEG data URL for the multimodal model (images only). */
@@ -116,6 +124,20 @@ export async function meshBox(bytes: ArrayBuffer): Promise<{
   return { dims: { x: size.x, y: size.y, z: size.z }, box };
 }
 
+/**
+ * Everything the model needs about a mesh: the box it occupies, and rendered
+ * views of it. Without the views an import() is a labelled box, and asking for
+ * a feature to be coloured is asking the model to guess.
+ */
+export async function meshAsset(bytes: ArrayBuffer): Promise<
+  Pick<UploadedAsset, "dims" | "box" | "imageDataUrl" | "viewLegend">
+> {
+  const { dims, box } = await meshBox(bytes);
+  const { renderMeshViews } = await import("./mesh-views");
+  const views = await renderMeshViews(bytes, box);
+  return { dims, box, imageDataUrl: views?.dataUrl, viewLegend: views?.legend };
+}
+
 /** Process a user-picked file into an uploadable asset. Throws with a readable message on unsupported input. */
 export async function processUpload(file: File, takenPaths: ReadonlySet<string>): Promise<UploadedAsset> {
   const lower = file.name.toLowerCase();
@@ -126,7 +148,7 @@ export async function processUpload(file: File, takenPaths: ReadonlySet<string>)
       path: uploadPath(file.name, "stl", takenPaths),
       kind: "mesh",
       compileData: bytes,
-      ...(await meshBox(bytes)),
+      ...(await meshAsset(bytes)),
     };
   }
   if (lower.endsWith(".scad")) {
@@ -171,7 +193,16 @@ export function describeUpload(asset: UploadedAsset): string {
     const frame = b
       ? ` It occupies x ${b.min.x.toFixed(1)}..${b.max.x.toFixed(1)}, y ${b.min.y.toFixed(1)}..${b.max.y.toFixed(1)}, z ${b.min.z.toFixed(1)}..${b.max.z.toFixed(1)} mm in its own coordinates — do NOT assume 0..size; any coordinate you write outside that box misses the mesh entirely.`
       : "";
-    return `- ${name}: 3D mesh, ${size}, use it with import("${asset.path}") — treat it as an opaque solid you can combine with, cut from, or add to.${frame}`;
+    // With views attached the mesh stops being opaque: the model can read a
+    // feature's position off the grid instead of inventing one.
+    const views = asset.viewLegend
+      ? ` Two rendered views of it are attached over a millimetre grid — ${asset.viewLegend}. Read any feature's position off that grid and write your coordinates from it.`
+      : "";
+    // The mesh is untextured, so the photo is the only colour reference.
+    const photo = asset.sourcePhotoUrl
+      ? " The photo it was sculpted from is attached as well — match a feature in the photo to the same feature in the views to know what colour it should be."
+      : "";
+    return `- ${name}: 3D mesh, ${size}, use it with import("${asset.path}") — treat it as an opaque solid you can combine with, cut from, or add to.${frame}${views}${photo}`;
   }
   if (asset.kind === "image") {
     const h = asset.heightmap!;

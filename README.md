@@ -41,6 +41,10 @@ Google Gemini is the default and its free tier needs no credit card; OpenRouter
 and Anthropic are one click away in the same dialog, and the badge in the header
 reopens it whenever you want to switch.
 
+<p align="center">
+  <img src="docs/setup.png" alt="ask3d's first-run dialog: pick Google Gemini, OpenRouter or Anthropic, paste one key, and it is written to .env.local and applied without a restart" width="52%">
+</p>
+
 ```bash
 ./start.sh                  # app + statue sidecar, also served on your LAN
 ./start.sh --local          # loopback only
