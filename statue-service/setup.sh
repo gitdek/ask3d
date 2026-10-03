@@ -73,10 +73,8 @@ if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
   exit 1
 fi
 if ! have git; then echo "✗ git is required" >&2; exit 1; fi
-
-PY312="$(command -v python3.12 || true)"
-if [[ -z $PY312 ]]; then
-  echo "✗ python3.12 not found (brew install python@3.12)" >&2
+if ! have uv; then
+  echo "✗ uv is required for this step: brew install uv" >&2
   exit 1
 fi
 
@@ -85,14 +83,26 @@ if [[ ! -d hunyuan-mlx ]]; then
   git clone --depth 1 https://github.com/dgrauet/Hunyuan3D-2.1-mlx hunyuan-mlx
 fi
 if [[ ! -x hunyuan-mlx/.venv/bin/python ]]; then
-  echo "… creating its environment (this is the slow part)"
-  "$PY312" -m venv hunyuan-mlx/.venv
+  echo "… creating its environment on Python 3.12"
+  uv venv --python 3.12 hunyuan-mlx/.venv >/dev/null
 fi
-echo "… installing the engine and the extras ask3d needs on top of it"
-hunyuan-mlx/.venv/bin/pip install --quiet --upgrade pip
-[[ -f hunyuan-mlx/requirements.txt ]] && hunyuan-mlx/.venv/bin/pip install --quiet -r hunyuan-mlx/requirements.txt
-# rembg: the port composites on white and would otherwise rebuild your kitchen.
-hunyuan-mlx/.venv/bin/pip install --quiet rembg onnxruntime pymeshlab opencv-python-headless trimesh
+
+# Install our own list, not the port's requirements.txt — see the comments in
+# requirements-local-engine.txt for why that file cannot work here.
+echo "… installing the engine (a few hundred MB, several minutes)"
+uv pip install --python hunyuan-mlx/.venv/bin/python -r requirements-local-engine.txt
+
+hunyuan-mlx/.venv/bin/python - <<'VERIFY'
+import sys
+sys.path.insert(0, "hunyuan-mlx")
+try:
+    import mlx.core  # noqa: F401
+    from hy3dshape.hy3dshape.pipeline_mlx import ShapePipeline  # noqa: F401
+    from rembg import remove  # noqa: F401
+except Exception as exc:
+    sys.exit(f"✗ the engine did not import cleanly: {type(exc).__name__}: {exc}")
+print("✓ engine imports: mlx, the shape pipeline, and background removal")
+VERIFY
 
 cat <<'DONE'
 

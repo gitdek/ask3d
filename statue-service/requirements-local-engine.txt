@@ -1,0 +1,35 @@
+# Dependencies for the optional on-device engine (Apple silicon).
+#
+# Deliberately NOT the MLX port's own requirements.txt. That file pins
+# cupy-cuda12x, bpy and deepspeed — CUDA and Blender packages that cannot
+# install on Apple silicon — and routes through mirrors that are slow or
+# unreachable from much of the world. It also pins versions years older than
+# what the port actually runs against.
+#
+# This is the set a working install really has, verified against one.
+mlx
+# the port's MLX kernels; not declared by its own requirements.txt
+mlx-arsenal
+torch
+# the port's conditioner imports torchvision.transforms
+torchvision
+transformers
+diffusers
+huggingface-hub
+safetensors
+numpy
+scipy
+einops
+omegaconf
+pyyaml
+tqdm
+pillow
+scikit-image
+opencv-python-headless
+trimesh
+pymeshlab
+xatlas
+# background removal: the port composites onto white and would otherwise
+# reconstruct whatever is behind your subject
+rembg
+onnxruntime

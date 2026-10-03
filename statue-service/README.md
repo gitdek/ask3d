@@ -25,11 +25,21 @@ statue-service/.venv/bin/hf auth login
 ./statue-service/setup.sh --local-engine
 ```
 
-Apple silicon only, and the weights are ~15 GB downloaded on your first
-generation. In exchange it is unlimited, private, and needs no account. That is
-why it is a separate flag rather than part of the clone: nobody who just wants
-to describe a bracket should pay 15 GB for it, and it cannot run at all on a
-machine without MLX.
+Apple silicon only. Needs [`uv`](https://docs.astral.sh/uv/) (`brew install uv`)
+and pulls ~1.5 GB of Python packages; the ~15 GB of model weights download on
+your first generation. In exchange it is unlimited, private, and needs no
+account — and once installed it becomes the default engine.
+
+It is a flag rather than part of the clone because nobody who just wants to
+describe a bracket should pay 15 GB for it, and MLX cannot run at all on
+anything but Apple silicon.
+
+> The script installs `requirements-local-engine.txt`, **not** the port's own
+> `requirements.txt`. That file pins `cupy-cuda12x`, `bpy` and `deepspeed` —
+> CUDA and Blender packages that cannot install on Apple silicon — and pins
+> versions years older than the port actually runs against. The list here is
+> what a working install really has, and two of its entries (`torchvision`,
+> `mlx-arsenal`) are imported by the port but declared nowhere.
 
 The script is idempotent — run it again any time, it only does what is missing.
 `./start.sh` picks up whichever engines exist and the app's header shows them.

@@ -37,6 +37,19 @@ HUNYUAN_PYTHON = HUNYUAN_DIR / ".venv" / "bin" / "python"
 SIDECAR_PYTHON = SERVICE_DIR / ".venv" / "bin" / "python"
 
 
+def default_engine() -> str:
+    """Prefer the on-device engine whenever it is installed.
+
+    Someone who went to the trouble of installing the local engine wants it
+    used; falling back to a rate-limited cloud Space would be a surprise.
+    STATUE_MODE still wins if it is set explicitly.
+    """
+    explicit = os.environ.get("STATUE_MODE")
+    if explicit:
+        return explicit
+    return "hunyuan" if HUNYUAN_PYTHON.exists() else "space"
+
+
 def tool_python() -> Path:
     """Interpreter for mesh repair and the cloud generators.
 
@@ -195,7 +208,7 @@ def _generate(task: dict, image_path: Path, out_base: Path) -> None:
     #     conditioning — markedly better body mass/depth than one photo.
     #   "trellis": legacy trellis-mac on-device — erratic quality, kept
     #     for experiments only.
-    mode = task.get("engine") or os.environ.get("STATUE_MODE", "space")
+    mode = task.get("engine") or default_engine()
     cwd = SERVICE_DIR
     cmd_for_seed = None  # set by engines that support seed re-rolls
     if mode == "space":
@@ -363,7 +376,7 @@ def health() -> dict:
     return {
         "ok": True,
         "mock": MOCK,
-        "default_engine": os.environ.get("STATUE_MODE", "space"),
+        "default_engine": default_engine(),
         "engines": {
             # The cloud engines only need the sidecar venv, so they are
             # available to anyone who ran setup.sh — no 15 GB, any OS.
@@ -397,7 +410,7 @@ async def create_task(
     site = request.headers.get("sec-fetch-site")
     if site not in (None, "same-origin", "none"):
         raise HTTPException(status_code=403, detail="cross-site request refused")
-    requested = engine or os.environ.get("STATUE_MODE", "space")
+    requested = engine or default_engine()
     if requested not in VALID_ENGINES:
         raise HTTPException(status_code=400, detail=f"unknown engine '{requested}'")
     # Reserve the single generation slot under the lock, but receive the
