@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 260" width="880" height="260" role="img" aria-label="ask3d — describe an object, get a printable model">
+  <defs>
+    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22d3ee"/><stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="head" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#22d3ee" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0.5" cy="0.5">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.26"/><stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0.5" cy="0.5">
+      <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.22"/><stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="#ffffff" stroke-opacity="0.045" stroke-width="1"/>
+    </pattern>
+    <clipPath id="card"><rect x="0" y="0" width="880" height="260" rx="20"/></clipPath>
+    <clipPath id="cube"><path d="M120 54 L164 79 L164 129 L120 154 L76 129 L76 79 Z"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#card)">
+    <rect width="880" height="260" fill="#07070b"/>
+    <rect width="880" height="260" fill="url(#grid)"/>
+    <ellipse cx="150" cy="110" rx="300" ry="220" fill="url(#glowA)"/>
+    <ellipse cx="760" cy="190" rx="320" ry="230" fill="url(#glowB)"/>
+
+    <!-- logomark -->
+    <g clip-path="url(#cube)">
+      <rect x="60" y="112" width="130" height="60" fill="url(#beam)" opacity="0.18"/>
+      <rect x="60" y="-24" width="130" height="24" fill="url(#head)">
+        <animate attributeName="y" values="154;60;154" dur="4.2s" repeatCount="indefinite"
+                 keyTimes="0;0.55;1" calcMode="spline" keySplines="0.4 0 0.2 1;0.4 0 0.2 1"/>
+      </rect>
+    </g>
+    <g fill="none" stroke="url(#beam)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M120 54 L164 79 L164 129 L120 154 L76 129 L76 79 Z" stroke-dasharray="300" stroke-dashoffset="300">
+        <animate attributeName="stroke-dashoffset" from="300" to="0" dur="1.3s" fill="freeze"/>
+      </path>
+      <g opacity="0.85">
+        <path d="M120 54 L120 104" stroke-dasharray="50" stroke-dashoffset="50">
+          <animate attributeName="stroke-dashoffset" from="50" to="0" dur="0.4s" begin="1.0s" fill="freeze"/></path>
+        <path d="M76 79 L120 104" stroke-dasharray="52" stroke-dashoffset="52">
+          <animate attributeName="stroke-dashoffset" from="52" to="0" dur="0.4s" begin="1.15s" fill="freeze"/></path>
+        <path d="M164 79 L120 104" stroke-dasharray="52" stroke-dashoffset="52">
+          <animate attributeName="stroke-dashoffset" from="52" to="0" dur="0.4s" begin="1.3s" fill="freeze"/></path>
+      </g>
+    </g>
+    <circle cx="120" cy="104" r="3.4" fill="#22d3ee">
+      <animate attributeName="opacity" values="0.35;1;0.35" dur="2.2s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- wordmark -->
+    <g font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+      <text x="222" y="108" font-size="62" font-weight="700" letter-spacing="6" fill="#e8e8ed">ask<tspan fill="url(#beam)">3d</tspan></text>
+      <text x="226" y="146" font-size="19" fill="#9aa0ac">Describe an object. Get a 3D-printable model.</text>
+      <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" fill="#5c6270">
+        <text x="226" y="186">describe</text>
+        <text x="316" y="186" fill="#3a3f4a">&#8594;</text>
+        <text x="338" y="186">code</text>
+        <text x="392" y="186" fill="#3a3f4a">&#8594;</text>
+        <text x="414" y="186">compile</text>
+        <text x="492" y="186" fill="#3a3f4a">&#8594;</text>
+        <text x="514" y="186">preview</text>
+      </g>
+      <!-- a spark running the pipeline, same signal as the app's rail -->
+      <rect x="226" y="196" width="46" height="2" rx="1" fill="url(#beam)" opacity="0.9">
+        <animate attributeName="x" values="226;520;226" dur="3.4s" repeatCount="indefinite"
+                 calcMode="spline" keyTimes="0;0.5;1" keySplines="0.4 0 0.2 1;0.4 0 0.2 1"/>
+      </rect>
+      <rect x="226" y="197" width="340" height="1" fill="#ffffff" opacity="0.07"/>
+    </g>
+  </g>
+  <rect x="0.5" y="0.5" width="879" height="259" rx="20" fill="none" stroke="#ffffff" stroke-opacity="0.09"/>
+</svg>

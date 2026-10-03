@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="ask3d logomark">
+  <defs>
+    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="head" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#22d3ee" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="cube"><path d="M48 8 L82.6 28 L82.6 68 L48 88 L13.4 68 L13.4 28 Z"/></clipPath>
+  </defs>
+
+  <!-- deposited material + print head sweeping up through the solid -->
+  <g clip-path="url(#cube)">
+    <rect x="0" y="52" width="96" height="44" fill="url(#beam)" opacity="0.16"/>
+    <rect x="0" y="-20" width="96" height="20" fill="url(#head)">
+      <animate attributeName="y" values="88;12;88" dur="4.2s" repeatCount="indefinite"
+               keyTimes="0;0.55;1" calcMode="spline" keySplines="0.4 0 0.2 1;0.4 0 0.2 1"/>
+    </rect>
+  </g>
+
+  <!-- the drawing inks itself in -->
+  <g fill="none" stroke="url(#beam)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M48 8 L82.6 28 L82.6 68 L48 88 L13.4 68 L13.4 28 Z"
+          stroke-dasharray="240" stroke-dashoffset="240">
+      <animate attributeName="stroke-dashoffset" from="240" to="0" dur="1.2s" fill="freeze"/>
+    </path>
+    <g opacity="0.85">
+      <path d="M48 8 L48 48" stroke-dasharray="40" stroke-dashoffset="40">
+        <animate attributeName="stroke-dashoffset" from="40" to="0" dur="0.4s" begin="0.9s" fill="freeze"/>
+      </path>
+      <path d="M13.4 28 L48 48" stroke-dasharray="40" stroke-dashoffset="40">
+        <animate attributeName="stroke-dashoffset" from="40" to="0" dur="0.4s" begin="1.05s" fill="freeze"/>
+      </path>
+      <path d="M82.6 28 L48 48" stroke-dasharray="40" stroke-dashoffset="40">
+        <animate attributeName="stroke-dashoffset" from="40" to="0" dur="0.4s" begin="1.2s" fill="freeze"/>
+      </path>
+    </g>
+  </g>
+
+  <circle cx="48" cy="48" r="3.8" fill="#22d3ee">
+    <animate attributeName="opacity" values="0.35;1;0.35" dur="2.2s" repeatCount="indefinite"/>
+  </circle>
+</svg>
