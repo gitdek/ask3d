@@ -51,6 +51,10 @@ function scanFences(markdown: string): FencedBlock[] | null {
 export function extractLastScadBlock(markdown: string): string | null {
   const blocks = scanFences(markdown);
   if (blocks === null) return null;
+  // No fences at all: a model that forgets them emits the program as prose,
+  // and throwing a complete, correct program away looks to the user like
+  // nothing happened at all.
+  if (blocks.length === 0) return wholeMessageAsProgram(markdown);
 
   const tagged = blocks.filter((b) => SCAD_TAGS.has(b.lang));
   if (tagged.length > 0) {
@@ -68,7 +72,9 @@ export function extractLastScadBlock(markdown: string): string | null {
 
   for (let i = blocks.length - 1; i >= 0; i--) {
     const block = blocks[i];
-    if (block.lang !== "") continue;
+    // Any info string is acceptable when the content is plainly OpenSCAD:
+    // models reach for ```cpp and ```c more often than for no tag at all.
+    if (block.lang !== "" && !SCAD_HINT.test(block.code)) continue;
     if (block.code.includes("```")) {
       // A quotation wrapper (e.g. ````) around an inner fenced block.
       const nested = extractLastScadBlock(block.code);
@@ -79,4 +85,27 @@ export function extractLastScadBlock(markdown: string): string | null {
     if (code.length > 0 && SCAD_HINT.test(code)) return code;
   }
   return null;
+}
+
+/**
+ * Accept an unfenced reply that is, in its entirety, a program.
+ *
+ * Deliberately strict: a program is nearly all statements, braces and `//`
+ * comments, while an explanation that happens to mention difference() is
+ * mostly sentences. Requiring both a module definition and a high ratio of
+ * code-shaped lines keeps prose away from the compiler, which is the whole
+ * reason untagged content was distrusted in the first place.
+ */
+function wholeMessageAsProgram(markdown: string): string | null {
+  const code = markdown.trim();
+  if (!code || !SCAD_HINT.test(code)) return null;
+  if (!/^[ \t]*module\s+\w+\s*\(/m.test(code)) return null;
+
+  const lines = code.split("\n").filter((line) => line.trim().length > 0);
+  if (lines.length < 4) return null;
+  const codeShaped = lines.filter((line) => {
+    const text = line.trim();
+    return text.startsWith("//") || /[;{}]\s*$/.test(text) || /^[})\]];?$/.test(text);
+  }).length;
+  return codeShaped / lines.length >= 0.85 ? code : null;
 }

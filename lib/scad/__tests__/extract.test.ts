@@ -85,3 +85,60 @@ describe("fragment resistance", () => {
     expect(extractLastScadBlock(md)).toContain("module b()");
   });
 });
+
+describe("replies that forget the fence", () => {
+  const PROGRAM = `// COLORS: white, midnight blue
+$fn = 48;
+
+module the_mesh() {
+  import("/uploads/statue.stl");
+}
+
+module mask_eyes() {
+  translate([-12.5, -17, 50]) sphere(r = 5.2);
+  translate([12.5, -17, 50]) sphere(r = 5.2);
+}
+
+module color_part_1() {
+  intersection() { the_mesh(); mask_eyes(); }
+}
+
+module color_part_2() {
+  difference() { the_mesh(); mask_eyes(); }
+}
+
+color_part_1();
+color_part_2();`;
+
+  it("takes an unfenced reply that is entirely a program", () => {
+    // Observed: a complete, correct colour program arrived with no fence and
+    // was silently discarded, so the app looked like it had done nothing.
+    const code = extractLastScadBlock(PROGRAM);
+    expect(code).not.toBeNull();
+    expect(code).toContain("// COLORS: white, midnight blue");
+    expect(code).toContain("color_part_2();");
+  });
+
+  it("still refuses prose that merely mentions OpenSCAD", () => {
+    const prose = `I can do that for you. The usual approach is to call difference()
+with the body first and the holes after it, then union() the lettering on top.
+Each module should be watertight before you combine them, and a cylinder()
+with a low $fn will look faceted. Tell me which diameter you want and I will
+write the program for you in the next message.`;
+    expect(extractLastScadBlock(prose)).toBeNull();
+  });
+
+  it("refuses an unfenced reply with no module definition", () => {
+    expect(extractLastScadBlock("cube([10,10,10]);\ntranslate([1,2,3]);")).toBeNull();
+  });
+
+  it("takes a fence the model tagged with the wrong language", () => {
+    const md = "Here you go:\n\n```cpp\n" + PROGRAM + "\n```\n";
+    expect(extractLastScadBlock(md)).toContain("color_part_1()");
+  });
+
+  it("does not treat a tagged non-OpenSCAD fence as code", () => {
+    const md = "Slicer settings:\n\n```json\n{ \"layer_height\": 0.2 }\n```\n";
+    expect(extractLastScadBlock(md)).toBeNull();
+  });
+});

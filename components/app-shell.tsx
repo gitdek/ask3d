@@ -734,6 +734,11 @@ export default function AppShell({
       uploadsRef.current = [...uploadsRef.current, statueAsset];
       unannouncedRef.current.add(statuePath);
       setUploads(uploadsRef.current);
+      // The statue, not the photo, is now the thing to act on — and it is the
+      // only asset that can offer "Colour it like the photo", so leaving the
+      // photo's chips up hides the one suggestion the statue just earned.
+      suggestionsPathRef.current = statuePath;
+      setSuggestions(staticSuggestions(statueAsset));
       replaceViewerModel(statueStl);
       if (repairWarning) {
         setUploadError(
