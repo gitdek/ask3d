@@ -71,7 +71,7 @@ export async function migrateLocalLibrary(): Promise<void> {
     return; // no localStorage → nothing local to migrate either
   }
   try {
-    const db = await new Promise<IDBDatabase | null>((resolve) => {
+    const db = await new Promise<IDBDatabase | null>((resolve, reject) => {
       const req = indexedDB.open("ask3d-history", 1);
       req.onupgradeneeded = () => {
         // DB didn't exist before — abort so we don't create an empty one.
@@ -79,49 +79,43 @@ export async function migrateLocalLibrary(): Promise<void> {
         resolve(null);
       };
       req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
+      req.onerror = () => reject(req.error);
     });
     if (!db) {
       localStorage.setItem(FLAG, "1");
       return;
     }
-    const items: HistoryMeta[] = await new Promise((resolve) => {
-      try {
+    try {
+      const items: HistoryMeta[] = await new Promise((resolve, reject) => {
         const tx = db.transaction("meta", "readonly");
         const req = tx.objectStore("meta").getAll();
-        req.onsuccess = () => resolve(req.result as HistoryMeta[]);
-        req.onerror = () => resolve([]);
-      } catch {
-        resolve([]);
-      }
-    });
-    const existing = new Set((await listHistory()).map((m) => `${m.kind}|${m.name}`));
-    items.sort((a, b) => a.createdAt - b.createdAt); // oldest first keeps order
-    let failed = 0;
-    for (const m of items) {
-      if (existing.has(`${m.kind}|${m.name}`)) continue;
-      const bytes: ArrayBuffer | null = await new Promise((resolve) => {
-        try {
+        tx.oncomplete = () => resolve(req.result as HistoryMeta[]);
+        tx.onabort = () => reject(tx.error);
+        req.onerror = () => reject(req.error);
+      });
+      const existing = new Set((await listHistory()).map((m) => `${m.kind}|${m.name}`));
+      items.sort((a, b) => a.createdAt - b.createdAt); // oldest first keeps order
+      for (const m of items) {
+        if (existing.has(`${m.kind}|${m.name}`)) continue;
+        const bytes: ArrayBuffer | null = await new Promise((resolve, reject) => {
           const tx = db.transaction("blobs", "readonly");
           const req = tx.objectStore("blobs").get(m.id);
-          req.onsuccess = () => resolve((req.result as ArrayBuffer) ?? null);
-          req.onerror = () => resolve(null);
-        } catch {
-          resolve(null);
-        }
-      });
-      if (!bytes) continue;
-      const { id: _id, createdAt: _c, size: _s, ...meta } = m;
-      await saveHistoryItem(meta, bytes).catch(() => {
-        failed += 1;
-      });
+          tx.oncomplete = () => resolve((req.result as ArrayBuffer) ?? null);
+          tx.onabort = () => reject(tx.error);
+          req.onerror = () => reject(req.error);
+        });
+        if (!bytes) throw new Error(`local library bytes missing (${m.id})`);
+        const { id: _id, createdAt: _c, size: _s, ...meta } = m;
+        await saveHistoryItem(meta, bytes);
+      }
+      localStorage.setItem(FLAG, "1");
+      if (items.length > 0) console.info(`[library] migrated ${items.length} local items to the shared library`);
+    } finally {
+      db.close();
     }
-    db.close();
-    localStorage.setItem(FLAG, "1");
-    if (items.length > 0) console.info(`[library] migrated ${items.length} local items to the shared library`);
     // The old per-browser copy (tens of MB of STLs) is dead weight once it
-    // is all on the server; keep it only if something failed to upload.
-    if (failed === 0) indexedDB.deleteDatabase("ask3d-history");
+    // is all on the server; keep it if anything failed along the way.
+    indexedDB.deleteDatabase("ask3d-history");
   } catch (error) {
     console.warn("[library] migration failed (will retry next load):", error);
   }
