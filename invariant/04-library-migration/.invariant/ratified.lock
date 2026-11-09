@@ -1,0 +1,108 @@
+{
+  "ratified": {
+    "by": "gitdek",
+    "at": "2026-11-09T20:53:48Z",
+    "issue": 23,
+    "comment": "https://github.com/gitdek/ask3d/issues/23#issuecomment-6751196709",
+    "proposal": "sha256:3a4afd8323d27d394f067052f3e4661ccc27c7affd2d8635456af778c2af7387"
+  },
+  "bounds": {
+    "Item": "item",
+    "MaxLoads": "2"
+  },
+  "statements": [
+    {
+      "name": "Spec",
+      "kind": "spec",
+      "says": "Sequential browser loads follow the migration, with one local item identified by its kind and name and at most two loads.",
+      "sha256": "sha256:3bc3fae9f9474f00d0321b2dd43d9a5c816c4a8de4f74aa8f34ec564fd94562f"
+    },
+    {
+      "name": "NoItemLost",
+      "kind": "invariant",
+      "says": "The completion flag is set and local deletion is requested only after every local item is shared under the same kind and name.",
+      "sha256": "sha256:71d5893bad7853200ec7c317864c8971f26740fc3267ccc2a41a36dc87ea9dcd"
+    },
+    {
+      "name": "FailedLoadsStayRetryable",
+      "kind": "invariant",
+      "says": "A read abort or error settles as a failure, and a failed load returns with its database closed, its local library retained and its completion flag unset for retry.",
+      "sha256": "sha256:9d66c850a10213b987a34ad41e6c08841f5cfdb9630525fd006fcd63dd91424d"
+    },
+    {
+      "name": "ReadsWaitForCommit",
+      "kind": "invariant",
+      "says": "Metadata and bytes are used only after their read transactions complete, never on request success alone.",
+      "sha256": "sha256:90fc86abefba08566086d7e489ae4265918c70270662ffa955102170994daf7b"
+    },
+    {
+      "name": "CompletedLoadsAreIdle",
+      "kind": "invariant",
+      "says": "After a completed migration returns, later loads keep its flag and make no database, shared-library or flag-write calls.",
+      "sha256": "sha256:e2c89829e569ba23f0d04e2a98bb6c07ffe0945531173ea17defaa6d45c865a4"
+    },
+    {
+      "name": "NoSourceDoesNoMigration",
+      "kind": "invariant",
+      "says": "Unavailable local storage causes no migration work, and an absent old database causes no uploads or deletion requests.",
+      "sha256": "sha256:de27b4b4e97fbb3817635b0ae167d96869c40d55f1b48681f55216b64df73d18"
+    },
+    {
+      "name": "TypeOK",
+      "kind": "invariant",
+      "says": "Every phase, transaction status, library key, flag and call count stays within its declared type and bounds.",
+      "sha256": "sha256:85bcec6036f5470ddf7d0857438c61f4bae9fbefe6c9ecd0eb6d0fea6140e4d2"
+    },
+    {
+      "name": "UploadThenSkip",
+      "kind": "witness",
+      "says": "An item can upload successfully, permit deletion and make the next load do nothing.",
+      "sha256": "sha256:276e66e2d90262348f40ab40a3d53f98eedb1908bd9382d0d535a37be2d95167"
+    },
+    {
+      "name": "RetryThenFinish",
+      "kind": "witness",
+      "says": "A failed first load can retry and finish migration on the second load.",
+      "sha256": "sha256:a15c7254010de37a474ad859d74376d6d84b389d49eb0a9e27e4f85ca20857e9"
+    },
+    {
+      "name": "AlreadySharedFinishes",
+      "kind": "witness",
+      "says": "An item already shared under the same kind and name can complete migration without an upload.",
+      "sha256": "sha256:b5cc9a7499d87f64756414346ea998bb53b13cd42aebddeeb134a331aba52cd0"
+    },
+    {
+      "name": "AbsentFinishes",
+      "kind": "witness",
+      "says": "A browser without the old database can mark migration complete without uploading or requesting deletion.",
+      "sha256": "sha256:cfd9c99402cdfcc9cf65d647bec7e5ca80bf478a57fcf4c72c5ed88502508ff9"
+    },
+    {
+      "name": "UnavailableReturns",
+      "kind": "witness",
+      "says": "A browser without local storage can return without doing migration work.",
+      "sha256": "sha256:1dab946ee9bb243dfcdf4425bdbb74feafc6b0f148afedf93d83dbda10dc8e51"
+    },
+    {
+      "name": "MissingBytesSkipped",
+      "kind": "bug",
+      "says": "Skipping a missing blob lets migration mark an uncopied item complete.",
+      "expect": "NoItemLost",
+      "sha256": "sha256:b68474808845dd2dc301067185a768e34b2cb2bd53fb410b01af6c857360b67d"
+    },
+    {
+      "name": "AbortIgnored",
+      "kind": "bug",
+      "says": "Ignoring a read transaction abort leaves the invocation stranded with its database open.",
+      "expect": "FailedLoadsStayRetryable",
+      "sha256": "sha256:b4bd22b14c0c6c1f7d3ce476b20d4a276a534e3fc297f32404023b97efa4b22b"
+    },
+    {
+      "name": "RequestSuccessUsed",
+      "kind": "bug",
+      "says": "Resolving a read on request success uses its result before the transaction completes.",
+      "expect": "ReadsWaitForCommit",
+      "sha256": "sha256:5308d16df68096163c6bfc12a30f6c636dd759511bd019ccfb0268684fe4df70"
+    }
+  ]
+}

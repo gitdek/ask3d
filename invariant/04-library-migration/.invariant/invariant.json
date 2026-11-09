@@ -1,0 +1,10 @@
+{
+  "name": "local library migration",
+  "module": ".invariant/specs/LibraryMigration.tla",
+  "code": ".",
+  "language": "typescript",
+  "conformance": "conformance.ts",
+  "existing": [
+    "lib/history.ts"
+  ]
+}
