@@ -1,0 +1,10 @@
+{
+  "name": "proxy request guard",
+  "module": ".invariant/specs/ProxyGuard.tla",
+  "code": ".",
+  "language": "typescript",
+  "conformance": "conformance.ts",
+  "existing": [
+    "proxy.ts"
+  ]
+}

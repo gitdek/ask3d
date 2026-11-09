@@ -1,0 +1,92 @@
+{
+  "ratified": {
+    "by": "gitdek",
+    "at": "2026-11-09T21:28:14Z",
+    "issue": 20,
+    "comment": "https://github.com/gitdek/ask3d/issues/20#issuecomment-6751923041",
+    "proposal": "sha256:52c457b04685025b4854e80de13e4c384d54b73f7452f1b1600966ea9f534776"
+  },
+  "bounds": {
+    "AllowedHosts": "{\"app.example\"}",
+    "FetchSites": "{\"\", \"same-origin\", \"none\", \"cross-site\"}",
+    "Hosts": "{\"localhost:3000\", \"192.168.1.2:3000\", \"workstation.local:3000\", \"app.example:3000\", \"evil.example:3000\", \"\"}",
+    "Methods": "{\"GET\", \"POST\"}",
+    "Origins": "{\"\", \"own\", \"other\", \"not a URL\"}"
+  },
+  "statements": [
+    {
+      "name": "Spec",
+      "kind": "spec",
+      "says": "The guard starts ready, decides one request, and returns to ready before deciding another.",
+      "sha256": "sha256:1fecf7371b3ae5082ac5aa6546ced741d565bf2b5707cf9cf51be90dee4936eb"
+    },
+    {
+      "name": "TypeOK",
+      "kind": "invariant",
+      "says": "The state is ready with no request, or holds one bounded request and its NextResponse.next() or HTTP 403 result.",
+      "sha256": "sha256:3087a1c9457e3d9b22eed2716b4d3271a5634952e5e7ce04ac4b318b09e0242e"
+    },
+    {
+      "name": "SafeMethodsPass",
+      "kind": "invariant",
+      "says": "GET, HEAD and OPTIONS pass regardless of their headers.",
+      "sha256": "sha256:e411a657cc698efac06ec556db174ea1fb91ee640cb2e814f55d359b18150245"
+    },
+    {
+      "name": "UntrustedHostsRefused",
+      "kind": "invariant",
+      "says": "Every other method receives 403 unless Host names a local address or a hostname in ASK3D_ALLOWED_HOSTS.",
+      "sha256": "sha256:5f479efed14613b08495d420d5a5a899f891efa7ccbc9aac5d235d42995bc759"
+    },
+    {
+      "name": "CrossSiteRefused",
+      "kind": "invariant",
+      "says": "Every other method receives 403 when a nonempty Sec-Fetch-Site is neither same-origin nor none.",
+      "sha256": "sha256:35364ec8286736012236e7580e27281ab86322de42e159bee3061ed9fe88e0c3"
+    },
+    {
+      "name": "MismatchedOriginRefused",
+      "kind": "invariant",
+      "says": "Every other method receives 403 when a valid nonempty Origin has a URL host that differs from the raw Host header, including case and port.",
+      "sha256": "sha256:6d730bf4d71766cd49525a456e3462e25718469d8507099196445552a7741bbb"
+    },
+    {
+      "name": "MalformedOriginRefused",
+      "kind": "invariant",
+      "says": "Every other method receives 403 when a nonempty Origin cannot be parsed as a URL.",
+      "sha256": "sha256:22c39c34227c9796bbd0b3ea78bf0e8dced3f99cefa67c6ac6c752cf2549de54"
+    },
+    {
+      "name": "AcceptedRequestsPass",
+      "kind": "invariant",
+      "says": "A request passes when its Host is local or listed, Sec-Fetch-Site is absent, empty, same-origin or none, and Origin is absent, empty or has exactly the same URL host as Host.",
+      "sha256": "sha256:23505b8df714be79c7ba5e5533e2af7f09b3b5bc1db1f3b8f54a95b3515a1dd0"
+    },
+    {
+      "name": "LocalCurlPasses",
+      "kind": "witness",
+      "says": "A POST to localhost:3000 with neither browser header can pass.",
+      "sha256": "sha256:17ed913ef98df68c88aa8fd277ea7ba24b2eaab2d40ab54272e9787ecfc51728"
+    },
+    {
+      "name": "RebindingRefused",
+      "kind": "witness",
+      "says": "A POST to evil.example:3000 can receive 403 even with same-origin Sec-Fetch-Site and its own Origin.",
+      "sha256": "sha256:941af38147100af4a9e0d68998405bdb703075024905a0eff45862fb916814f7"
+    },
+    {
+      "name": "SkipHostCheck",
+      "kind": "bug",
+      "says": "A faulty guard passes a request from an untrusted Host because its browser headers are acceptable.",
+      "expect": "UntrustedHostsRefused",
+      "sha256": "sha256:bdf1c137314318b9f7d28a718949d8d09ff3228ea6198c70b4ff9e02b1400950"
+    },
+    {
+      "name": "IgnoreCrossSite",
+      "kind": "bug",
+      "says": "A faulty guard passes a cross-site request to an allowed Host because its Origin matches.",
+      "expect": "CrossSiteRefused",
+      "sha256": "sha256:77d93bc0c204792927c30de66a15f1784cb49a5534751f43b37f362bca4737ae"
+    }
+  ]
+}

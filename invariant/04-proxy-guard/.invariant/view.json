@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "state": [
+    {"id": "ready", "when": {"eq": [{"var": "response"}, "\"ready\""]}, "label": "Ready"},
+    {"id": "passed", "when": {"eq": [{"var": "response"}, "\"next\""]}, "label": "Passed"},
+    {"id": "refused", "when": {"eq": [{"var": "response"}, "\"403\""]}, "label": "Refused"}
+  ],
+  "step": [
+    {"id": "pass", "when": {"eq": [{"to": "response"}, "\"next\""]}, "label": "Pass request"},
+    {"id": "refuse", "when": {"eq": [{"to": "response"}, "\"403\""]}, "label": "Refuse request"},
+    {"id": "reset", "when": {"eq": [{"to": "response"}, "\"ready\""]}, "label": "Return to ready"}
+  ]
+}
