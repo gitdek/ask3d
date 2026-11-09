@@ -1,0 +1,6 @@
+{
+  "description": "Local library migration, written by Invariant and checked against its ratified TLA+ model.",
+  "name": "local-library-migration",
+  "private": true,
+  "type": "module"
+}
