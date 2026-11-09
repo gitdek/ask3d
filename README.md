@@ -78,12 +78,21 @@ Requires Node >= 22. Prefer configuring by hand? Copy `.env.local.example` to
 | Piece | What it does |
 |---|---|
 | `components/app-shell.tsx` | Chat → extract → lint → compile → preview → repair; statue photo selection and delivery: 80 mm conversion, mesh uploads with source photos, suggestions, viewer replacement, repair warnings and library saving |
-| `hooks/use-statue-task.ts` | Statue task start, polling, reload recovery, progress, naming and dismissal; guards one task through the component's delivery callback |
+| `hooks/use-statue-task.ts` | Statue task start, polling, reload recovery, progress, naming and dismissal; guards one task through the component's delivery callback and remembers completed deliveries |
 | `workers/openscad-worker.ts` | Runs the compiler off the main thread; fresh instance per render, 60 s cap |
 | `lib/scad/` | Fence extraction, pre-compile lint, stderr parsing, connected-component checks |
 | `lib/threemf.ts` | Hand-rolled 3MF writer (the wasm build's own is broken) |
 | `lib/ai/` | Provider registry and the system prompt |
 | `statue-service/` | Optional Python sidecar that turns photos into meshes |
+
+Statue filenames use `<photo-basename>-statue-<task-id>.stl` for fresh tasks,
+stripping only the photo's final extension, and `recovered-statue-<task-id>.stl`
+after a reload. Both include the full 12-character task ID. Rejected deliveries
+keep their name when retried on the same page. The hook remembers a task in
+localStorage only after its delivery callback resolves, or when explicitly
+cleared, so completed deliveries are skipped on reload. Pending or rejected
+deliveries remain recoverable unless cleared. If localStorage is unavailable,
+recovery stays best-effort and may deliver a completed task again.
 
 Three decisions worth the detour:
 
