@@ -1,0 +1,760 @@
+{
+  "version": 1,
+  "fingerprint": "sha256:7f8b780f7bf7eaffc69e57490efbfd5b9231f45b1a07ba70e2b82bdcae16edef",
+  "chart": {
+    "version": 1,
+    "states": [
+      {
+        "id": "state-WyJDb21waWxlIHBlbmRpbmc7IHdvcmtlciBydW5uaW5nIGFuZCB0aW1lciBhY3RpdmUiLFtdXQ",
+        "label": "Compile pending; worker running and timer active",
+        "members": [
+          "9126295520320492741"
+        ],
+        "initial_members": [
+          "9126295520320492741"
+        ],
+        "violated_rules": [],
+        "unavailable_actions": [
+          "Finished"
+        ]
+      },
+      {
+        "id": "state-WyJSZWplY3RlZCBieSB0aW1lb3V0OyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgZXhwaXJlZCIsW11d",
+        "label": "Rejected by timeout; worker terminated and timer expired",
+        "members": [
+          "-1150843454085549170",
+          "-5438440328081236821",
+          "-6865715283610193909",
+          "-82830458373716972",
+          "6043166708885565180",
+          "8172377893735574562"
+        ],
+        "initial_members": [],
+        "violated_rules": [],
+        "unavailable_actions": [
+          "Timeout"
+        ]
+      },
+      {
+        "id": "state-WyJSZWplY3RlZCBieSB3b3JrZXIgZXJyb3I7IHdvcmtlciB0ZXJtaW5hdGVkIGFuZCB0aW1lciBpbmFjdGl2ZSIsW11d",
+        "label": "Rejected by worker error; worker terminated and timer inactive",
+        "members": [
+          "-3932955166162793314",
+          "-448530575052212819",
+          "-5778797595240957891",
+          "-8945012876260793001",
+          "1027371426956336658",
+          "268812171587084969",
+          "2890467763953915722",
+          "3615779684056299160",
+          "5910803168582555198",
+          "6224073338257492121",
+          "6381121955415695896",
+          "7780238383331473320"
+        ],
+        "initial_members": [],
+        "violated_rules": [],
+        "unavailable_actions": [
+          "Timeout"
+        ]
+      },
+      {
+        "id": "state-WyJSZWplY3RlZCBieSBmYWlsdXJlIHJlc3BvbnNlOyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgaW5hY3RpdmUiLFtdXQ",
+        "label": "Rejected by failure response; worker terminated and timer inactive",
+        "members": [
+          "-4976247718727818321",
+          "1394090923149632653",
+          "5706450993992875855",
+          "6964125505930138354",
+          "7917341705860411205",
+          "8200973921831968348"
+        ],
+        "initial_members": [],
+        "violated_rules": [],
+        "unavailable_actions": [
+          "Timeout"
+        ]
+      },
+      {
+        "id": "state-WyJSZXNvbHZlZCB3aXRoIHRoZSBmaXJzdCBtb2RlbDsgd29ya2VyIHRlcm1pbmF0ZWQgYW5kIHRpbWVyIGluYWN0aXZlIixbXV0",
+        "label": "Resolved with the first model; worker terminated and timer inactive",
+        "members": [
+          "-2410806794211075937",
+          "-2578522501796096030",
+          "-4133209849332102328",
+          "-5931866209918496235",
+          "-6715528717316948586",
+          "-8037811532681521142",
+          "3185595335683767232",
+          "3755287820613920791",
+          "5797034166549896905",
+          "6750749031127825975",
+          "6850910675947712842",
+          "7119453330033343317"
+        ],
+        "initial_members": [],
+        "violated_rules": [],
+        "unavailable_actions": [
+          "Timeout"
+        ]
+      }
+    ],
+    "initial": [
+      "state-WyJDb21waWxlIHBlbmRpbmc7IHdvcmtlciBydW5uaW5nIGFuZCB0aW1lciBhY3RpdmUiLFtdXQ"
+    ],
+    "arrows": [
+      {
+        "from": "state-WyJDb21waWxlIHBlbmRpbmc7IHdvcmtlciBydW5uaW5nIGFuZCB0aW1lciBhY3RpdmUiLFtdXQ",
+        "to": "state-WyJSZXNvbHZlZCB3aXRoIHRoZSBmaXJzdCBtb2RlbDsgd29ya2VyIHRlcm1pbmF0ZWQgYW5kIHRpbWVyIGluYWN0aXZlIixbXV0",
+        "label": "Done response resolves with its model and cleans up",
+        "members": [
+          {
+            "From": "9126295520320492741",
+            "Action": "WorkerCallback",
+            "To": "-2578522501796096030"
+          },
+          {
+            "From": "9126295520320492741",
+            "Action": "WorkerCallback",
+            "To": "6750749031127825975"
+          }
+        ],
+        "count": 2,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDb21waWxlIHBlbmRpbmc7IHdvcmtlciBydW5uaW5nIGFuZCB0aW1lciBhY3RpdmUiLFtdXQ",
+        "to": "state-WyJSZWplY3RlZCBieSBmYWlsdXJlIHJlc3BvbnNlOyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgaW5hY3RpdmUiLFtdXQ",
+        "label": "Non-done response rejects and cleans up",
+        "members": [
+          {
+            "From": "9126295520320492741",
+            "Action": "WorkerCallback",
+            "To": "1394090923149632653"
+          }
+        ],
+        "count": 1,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDb21waWxlIHBlbmRpbmc7IHdvcmtlciBydW5uaW5nIGFuZCB0aW1lciBhY3RpdmUiLFtdXQ",
+        "to": "state-WyJSZWplY3RlZCBieSB0aW1lb3V0OyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgZXhwaXJlZCIsW11d",
+        "label": "One-shot timer expires, terminates worker and rejects",
+        "members": [
+          {
+            "From": "9126295520320492741",
+            "Action": "Timeout",
+            "To": "-1150843454085549170"
+          }
+        ],
+        "count": 1,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDb21waWxlIHBlbmRpbmc7IHdvcmtlciBydW5uaW5nIGFuZCB0aW1lciBhY3RpdmUiLFtdXQ",
+        "to": "state-WyJSZWplY3RlZCBieSB3b3JrZXIgZXJyb3I7IHdvcmtlciB0ZXJtaW5hdGVkIGFuZCB0aW1lciBpbmFjdGl2ZSIsW11d",
+        "label": "Worker error rejects with its message or fallback and cleans up",
+        "members": [
+          {
+            "From": "9126295520320492741",
+            "Action": "WorkerCallback",
+            "To": "1027371426956336658"
+          },
+          {
+            "From": "9126295520320492741",
+            "Action": "WorkerCallback",
+            "To": "268812171587084969"
+          }
+        ],
+        "count": 2,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJSZWplY3RlZCBieSB0aW1lb3V0OyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgZXhwaXJlZCIsW11d",
+        "to": "state-WyJSZWplY3RlZCBieSB0aW1lb3V0OyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgZXhwaXJlZCIsW11d",
+        "label": "Late worker callback repeats cleanup and preserves the first outcome",
+        "members": [
+          {
+            "From": "-1150843454085549170",
+            "Action": "WorkerCallback",
+            "To": "-5438440328081236821"
+          },
+          {
+            "From": "-1150843454085549170",
+            "Action": "WorkerCallback",
+            "To": "-6865715283610193909"
+          },
+          {
+            "From": "-1150843454085549170",
+            "Action": "WorkerCallback",
+            "To": "-82830458373716972"
+          },
+          {
+            "From": "-1150843454085549170",
+            "Action": "WorkerCallback",
+            "To": "6043166708885565180"
+          },
+          {
+            "From": "-1150843454085549170",
+            "Action": "WorkerCallback",
+            "To": "8172377893735574562"
+          }
+        ],
+        "count": 5,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJSZWplY3RlZCBieSB0aW1lb3V0OyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgZXhwaXJlZCIsW11d",
+        "to": "state-WyJSZWplY3RlZCBieSB0aW1lb3V0OyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgZXhwaXJlZCIsW11d",
+        "label": "Outcome remains unchanged",
+        "members": [
+          {
+            "From": "-1150843454085549170",
+            "Action": "Finished",
+            "To": "-1150843454085549170"
+          },
+          {
+            "From": "-5438440328081236821",
+            "Action": "Finished",
+            "To": "-5438440328081236821"
+          },
+          {
+            "From": "-6865715283610193909",
+            "Action": "Finished",
+            "To": "-6865715283610193909"
+          },
+          {
+            "From": "-82830458373716972",
+            "Action": "Finished",
+            "To": "-82830458373716972"
+          },
+          {
+            "From": "6043166708885565180",
+            "Action": "Finished",
+            "To": "6043166708885565180"
+          },
+          {
+            "From": "8172377893735574562",
+            "Action": "Finished",
+            "To": "8172377893735574562"
+          }
+        ],
+        "count": 6,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJSZWplY3RlZCBieSB3b3JrZXIgZXJyb3I7IHdvcmtlciB0ZXJtaW5hdGVkIGFuZCB0aW1lciBpbmFjdGl2ZSIsW11d",
+        "to": "state-WyJSZWplY3RlZCBieSB3b3JrZXIgZXJyb3I7IHdvcmtlciB0ZXJtaW5hdGVkIGFuZCB0aW1lciBpbmFjdGl2ZSIsW11d",
+        "label": "Late worker callback repeats cleanup and preserves the first outcome",
+        "members": [
+          {
+            "From": "1027371426956336658",
+            "Action": "WorkerCallback",
+            "To": "-3932955166162793314"
+          },
+          {
+            "From": "1027371426956336658",
+            "Action": "WorkerCallback",
+            "To": "-5778797595240957891"
+          },
+          {
+            "From": "1027371426956336658",
+            "Action": "WorkerCallback",
+            "To": "3615779684056299160"
+          },
+          {
+            "From": "1027371426956336658",
+            "Action": "WorkerCallback",
+            "To": "6224073338257492121"
+          },
+          {
+            "From": "1027371426956336658",
+            "Action": "WorkerCallback",
+            "To": "7780238383331473320"
+          },
+          {
+            "From": "268812171587084969",
+            "Action": "WorkerCallback",
+            "To": "-448530575052212819"
+          },
+          {
+            "From": "268812171587084969",
+            "Action": "WorkerCallback",
+            "To": "-8945012876260793001"
+          },
+          {
+            "From": "268812171587084969",
+            "Action": "WorkerCallback",
+            "To": "2890467763953915722"
+          },
+          {
+            "From": "268812171587084969",
+            "Action": "WorkerCallback",
+            "To": "5910803168582555198"
+          },
+          {
+            "From": "268812171587084969",
+            "Action": "WorkerCallback",
+            "To": "6381121955415695896"
+          }
+        ],
+        "count": 10,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJSZWplY3RlZCBieSB3b3JrZXIgZXJyb3I7IHdvcmtlciB0ZXJtaW5hdGVkIGFuZCB0aW1lciBpbmFjdGl2ZSIsW11d",
+        "to": "state-WyJSZWplY3RlZCBieSB3b3JrZXIgZXJyb3I7IHdvcmtlciB0ZXJtaW5hdGVkIGFuZCB0aW1lciBpbmFjdGl2ZSIsW11d",
+        "label": "Outcome remains unchanged",
+        "members": [
+          {
+            "From": "-3932955166162793314",
+            "Action": "Finished",
+            "To": "-3932955166162793314"
+          },
+          {
+            "From": "-448530575052212819",
+            "Action": "Finished",
+            "To": "-448530575052212819"
+          },
+          {
+            "From": "-5778797595240957891",
+            "Action": "Finished",
+            "To": "-5778797595240957891"
+          },
+          {
+            "From": "-8945012876260793001",
+            "Action": "Finished",
+            "To": "-8945012876260793001"
+          },
+          {
+            "From": "1027371426956336658",
+            "Action": "Finished",
+            "To": "1027371426956336658"
+          },
+          {
+            "From": "268812171587084969",
+            "Action": "Finished",
+            "To": "268812171587084969"
+          },
+          {
+            "From": "2890467763953915722",
+            "Action": "Finished",
+            "To": "2890467763953915722"
+          },
+          {
+            "From": "3615779684056299160",
+            "Action": "Finished",
+            "To": "3615779684056299160"
+          },
+          {
+            "From": "5910803168582555198",
+            "Action": "Finished",
+            "To": "5910803168582555198"
+          },
+          {
+            "From": "6224073338257492121",
+            "Action": "Finished",
+            "To": "6224073338257492121"
+          },
+          {
+            "From": "6381121955415695896",
+            "Action": "Finished",
+            "To": "6381121955415695896"
+          },
+          {
+            "From": "7780238383331473320",
+            "Action": "Finished",
+            "To": "7780238383331473320"
+          }
+        ],
+        "count": 12,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJSZWplY3RlZCBieSBmYWlsdXJlIHJlc3BvbnNlOyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgaW5hY3RpdmUiLFtdXQ",
+        "to": "state-WyJSZWplY3RlZCBieSBmYWlsdXJlIHJlc3BvbnNlOyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgaW5hY3RpdmUiLFtdXQ",
+        "label": "Late worker callback repeats cleanup and preserves the first outcome",
+        "members": [
+          {
+            "From": "1394090923149632653",
+            "Action": "WorkerCallback",
+            "To": "-4976247718727818321"
+          },
+          {
+            "From": "1394090923149632653",
+            "Action": "WorkerCallback",
+            "To": "5706450993992875855"
+          },
+          {
+            "From": "1394090923149632653",
+            "Action": "WorkerCallback",
+            "To": "6964125505930138354"
+          },
+          {
+            "From": "1394090923149632653",
+            "Action": "WorkerCallback",
+            "To": "7917341705860411205"
+          },
+          {
+            "From": "1394090923149632653",
+            "Action": "WorkerCallback",
+            "To": "8200973921831968348"
+          }
+        ],
+        "count": 5,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJSZWplY3RlZCBieSBmYWlsdXJlIHJlc3BvbnNlOyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgaW5hY3RpdmUiLFtdXQ",
+        "to": "state-WyJSZWplY3RlZCBieSBmYWlsdXJlIHJlc3BvbnNlOyB3b3JrZXIgdGVybWluYXRlZCBhbmQgdGltZXIgaW5hY3RpdmUiLFtdXQ",
+        "label": "Outcome remains unchanged",
+        "members": [
+          {
+            "From": "-4976247718727818321",
+            "Action": "Finished",
+            "To": "-4976247718727818321"
+          },
+          {
+            "From": "1394090923149632653",
+            "Action": "Finished",
+            "To": "1394090923149632653"
+          },
+          {
+            "From": "5706450993992875855",
+            "Action": "Finished",
+            "To": "5706450993992875855"
+          },
+          {
+            "From": "6964125505930138354",
+            "Action": "Finished",
+            "To": "6964125505930138354"
+          },
+          {
+            "From": "7917341705860411205",
+            "Action": "Finished",
+            "To": "7917341705860411205"
+          },
+          {
+            "From": "8200973921831968348",
+            "Action": "Finished",
+            "To": "8200973921831968348"
+          }
+        ],
+        "count": 6,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJSZXNvbHZlZCB3aXRoIHRoZSBmaXJzdCBtb2RlbDsgd29ya2VyIHRlcm1pbmF0ZWQgYW5kIHRpbWVyIGluYWN0aXZlIixbXV0",
+        "to": "state-WyJSZXNvbHZlZCB3aXRoIHRoZSBmaXJzdCBtb2RlbDsgd29ya2VyIHRlcm1pbmF0ZWQgYW5kIHRpbWVyIGluYWN0aXZlIixbXV0",
+        "label": "Late worker callback repeats cleanup and preserves the first outcome",
+        "members": [
+          {
+            "From": "-2578522501796096030",
+            "Action": "WorkerCallback",
+            "To": "-2410806794211075937"
+          },
+          {
+            "From": "-2578522501796096030",
+            "Action": "WorkerCallback",
+            "To": "-5931866209918496235"
+          },
+          {
+            "From": "-2578522501796096030",
+            "Action": "WorkerCallback",
+            "To": "-6715528717316948586"
+          },
+          {
+            "From": "-2578522501796096030",
+            "Action": "WorkerCallback",
+            "To": "-8037811532681521142"
+          },
+          {
+            "From": "-2578522501796096030",
+            "Action": "WorkerCallback",
+            "To": "3755287820613920791"
+          },
+          {
+            "From": "6750749031127825975",
+            "Action": "WorkerCallback",
+            "To": "-4133209849332102328"
+          },
+          {
+            "From": "6750749031127825975",
+            "Action": "WorkerCallback",
+            "To": "3185595335683767232"
+          },
+          {
+            "From": "6750749031127825975",
+            "Action": "WorkerCallback",
+            "To": "5797034166549896905"
+          },
+          {
+            "From": "6750749031127825975",
+            "Action": "WorkerCallback",
+            "To": "6850910675947712842"
+          },
+          {
+            "From": "6750749031127825975",
+            "Action": "WorkerCallback",
+            "To": "7119453330033343317"
+          }
+        ],
+        "count": 10,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJSZXNvbHZlZCB3aXRoIHRoZSBmaXJzdCBtb2RlbDsgd29ya2VyIHRlcm1pbmF0ZWQgYW5kIHRpbWVyIGluYWN0aXZlIixbXV0",
+        "to": "state-WyJSZXNvbHZlZCB3aXRoIHRoZSBmaXJzdCBtb2RlbDsgd29ya2VyIHRlcm1pbmF0ZWQgYW5kIHRpbWVyIGluYWN0aXZlIixbXV0",
+        "label": "Outcome remains unchanged",
+        "members": [
+          {
+            "From": "-2410806794211075937",
+            "Action": "Finished",
+            "To": "-2410806794211075937"
+          },
+          {
+            "From": "-2578522501796096030",
+            "Action": "Finished",
+            "To": "-2578522501796096030"
+          },
+          {
+            "From": "-4133209849332102328",
+            "Action": "Finished",
+            "To": "-4133209849332102328"
+          },
+          {
+            "From": "-5931866209918496235",
+            "Action": "Finished",
+            "To": "-5931866209918496235"
+          },
+          {
+            "From": "-6715528717316948586",
+            "Action": "Finished",
+            "To": "-6715528717316948586"
+          },
+          {
+            "From": "-8037811532681521142",
+            "Action": "Finished",
+            "To": "-8037811532681521142"
+          },
+          {
+            "From": "3185595335683767232",
+            "Action": "Finished",
+            "To": "3185595335683767232"
+          },
+          {
+            "From": "3755287820613920791",
+            "Action": "Finished",
+            "To": "3755287820613920791"
+          },
+          {
+            "From": "5797034166549896905",
+            "Action": "Finished",
+            "To": "5797034166549896905"
+          },
+          {
+            "From": "6750749031127825975",
+            "Action": "Finished",
+            "To": "6750749031127825975"
+          },
+          {
+            "From": "6850910675947712842",
+            "Action": "Finished",
+            "To": "6850910675947712842"
+          },
+          {
+            "From": "7119453330033343317",
+            "Action": "Finished",
+            "To": "7119453330033343317"
+          }
+        ],
+        "count": 12,
+        "hiding_rules": []
+      }
+    ],
+    "report": {
+      "rules": [
+        {
+          "name": "Spec",
+          "kind": "spec",
+          "says": "The compile starts in Init, and every step is a Next step.",
+          "sha256": "sha256:c06177101f662e93802a310062cf77a0dbab60efb85ad9dc2904441e5878ed84"
+        },
+        {
+          "name": "SingleSettlement",
+          "kind": "invariant",
+          "says": "The promise has no settlements while pending and exactly one once it resolves or rejects.",
+          "sha256": "sha256:37678ddd02e2995cdfc604a88ddb30a109d99c879989e60347cfdfdf9d13bac0"
+        },
+        {
+          "name": "FirstSignalWins",
+          "kind": "invariant",
+          "says": "The first delivered signal determines whether the promise resolves with its model or rejects with its prescribed error, and later signals preserve that outcome.",
+          "sha256": "sha256:79f5a43f38737d002a60d4deec8e2fc61c0881eaaef79c8164cd0ced54b30404"
+        },
+        {
+          "name": "WorkerTerminatedAfterSettlement",
+          "kind": "invariant",
+          "says": "Whenever the promise has settled, its worker has been terminated.",
+          "sha256": "sha256:67518b1a665cbcbf98df8d98bfc535e9ebd1a28ed78c1a698353623679de6f16"
+        },
+        {
+          "name": "TimerInactiveAfterSettlement",
+          "kind": "invariant",
+          "says": "Whenever the promise has settled, its timer is inactive because it was cleared or its one-shot timeout expired.",
+          "sha256": "sha256:3f925bb894ff6209ae67ecce6563ebaaaba1a3069a1cd29db16a4f449fab4391"
+        },
+        {
+          "name": "TypeOK",
+          "kind": "invariant",
+          "says": "Every recorded event, promise outcome, counter and resource flag has its declared type.",
+          "sha256": "sha256:1612690b22da1950229d79c0a5d2f392ada93d996c65b721745252af6b43d6ec"
+        },
+        {
+          "name": "DoneWins",
+          "kind": "witness",
+          "says": "A worker's done response can arrive first and resolve the promise with its model.",
+          "sha256": "sha256:cbf696b6e939a87114b9a6992a84cee9e054ef257d866c00fd9d30e026aeb7e0"
+        },
+        {
+          "name": "FailureWins",
+          "kind": "witness",
+          "says": "A non-done worker response can arrive first and reject the promise with the compile-failure error.",
+          "sha256": "sha256:b7f47c8818c6b4cd905c450c6501fbbffcf98884fad2d337be61b0065db18a1a"
+        },
+        {
+          "name": "ErrorWins",
+          "kind": "witness",
+          "says": "A worker error can arrive first and reject the promise.",
+          "sha256": "sha256:29e1faedc380ea5ce1b542167027478a32810e4a0b4875dbf8c639c708858ccd"
+        },
+        {
+          "name": "TimeoutWins",
+          "kind": "witness",
+          "says": "The timeout can arrive first and reject the promise with the timeout error.",
+          "sha256": "sha256:8efde36be53e33fb6faf6f0ba526198b9f2fc5b7d9066265335024c97f0b1e35"
+        },
+        {
+          "name": "EmptyErrorUsesFallback",
+          "kind": "witness",
+          "says": "A worker error with an empty message can reject the promise with the fallback message worker error.",
+          "sha256": "sha256:49a37dc7dab8831413dd56eb5f7661d0f22e1a7851b30fc2a2f8ade875aaf07c"
+        },
+        {
+          "name": "LaterModelIgnored",
+          "kind": "witness",
+          "says": "A second done response carrying a different model can arrive without replacing the first model.",
+          "sha256": "sha256:0d0db1ae9e0ed93b8da2cc68d40a6c0becd93c02f04bc99d4c7fc764f2cffc26"
+        },
+        {
+          "name": "LateFailureIgnored",
+          "kind": "witness",
+          "says": "A failure response can arrive after success without changing the resolved outcome.",
+          "sha256": "sha256:2aa4652ff68767bd4fc09ea726919e86a6703fddbb713f0eb8964a6e69c5c098"
+        },
+        {
+          "name": "LateErrorIgnored",
+          "kind": "witness",
+          "says": "A worker error can arrive after success without changing the resolved outcome.",
+          "sha256": "sha256:b45cafffee51d941739808fe4392a3e34205cac7376411df7f26cdc936aaa6f3"
+        },
+        {
+          "name": "LateDoneAfterTimeoutIgnored",
+          "kind": "witness",
+          "says": "A done response can arrive after timeout without changing the timeout rejection.",
+          "sha256": "sha256:7884ec0ac039d2249182003656ad207ed6fe28c0be9c104429993af88f9fb960"
+        },
+        {
+          "name": "EventuallySettles",
+          "kind": "property",
+          "says": "The invocation eventually resolves or rejects.",
+          "sha256": "sha256:e539bad32703415278d1c3699c97c7065ac93260b385456b6c810818ab7480e9"
+        },
+        {
+          "name": "TimeoutProgress",
+          "kind": "fairness",
+          "says": "An active timer eventually runs its timeout callback if it stays active.",
+          "sha256": "sha256:8a20ed150a21e8a53a1f6e040003da5cfbabf0d9dfea3c1e7f4a5861a3638362"
+        },
+        {
+          "name": "BugSecondSettlement",
+          "kind": "bug",
+          "says": "A repeated done response incorrectly causes a second actual promise settlement.",
+          "expect": "SingleSettlement",
+          "sha256": "sha256:0cf469716f8f5712e59a8df936b6611146ab60a9b709778b648b5a210696ce0f"
+        },
+        {
+          "name": "BugLateDoneOverwrites",
+          "kind": "bug",
+          "says": "A late done response incorrectly replaces the first outcome with its own model.",
+          "expect": "FirstSignalWins",
+          "sha256": "sha256:a121ba22c79396b9f5cf33c3831aa2fa328892a9bf7277f1f1a29e571983a0c8"
+        },
+        {
+          "name": "BugTimeoutLeavesWorker",
+          "kind": "bug",
+          "says": "The timeout rejects the promise but forgets to terminate the worker.",
+          "expect": "WorkerTerminatedAfterSettlement",
+          "sha256": "sha256:49498b9150ff86120903b6bcc54c908f75561903cff443191655d02a3bc876b5"
+        },
+        {
+          "name": "BugDoneLeavesTimer",
+          "kind": "bug",
+          "says": "A done response resolves the promise but forgets to clear the active timer.",
+          "expect": "TimerInactiveAfterSettlement",
+          "sha256": "sha256:1317d0a5076df308abed90905d2f38d5ed791a5f1140c744de7921367ad2aba5"
+        }
+      ],
+      "temporal": null,
+      "hidden": [],
+      "counts": {
+        "chart_arrows": 12,
+        "chart_arrows_before_hiding": 12,
+        "chart_states": 5,
+        "hidden_steps": 0,
+        "shown_steps": 72,
+        "tlc_generated_states": 73,
+        "tlc_initial_states": 1,
+        "tlc_states": 37,
+        "tlc_steps": 72
+      },
+      "count_meanings": {
+        "chart_arrows": "Visible source/reader-label/target buckets after hiding.",
+        "chart_arrows_before_hiding": "All source/reader-label/target buckets before hiding.",
+        "chart_states": "Partitions by reader label and violated invariant set, including all concrete states.",
+        "hidden_steps": "Concrete step occurrences belonging to fully hidden arrows.",
+        "shown_steps": "Concrete step occurrences belonging to visible arrows.",
+        "tlc_generated_states": "TLC generated states: initial generation (including duplicates) plus dumped step occurrences.",
+        "tlc_initial_states": "Distinct concrete initial states.",
+        "tlc_states": "Distinct reachable concrete states in the complete TLC graph.",
+        "tlc_steps": "Dumped concrete step occurrences, including duplicates and self-loops."
+      },
+      "arrow_target": 20,
+      "over_arrow_target": false,
+      "source": {
+        "module": "CompileOnce",
+        "config": {
+          "Specification": "Spec",
+          "Constants": {
+            "ErrorMessages": "{\"\", \"worker crashed\"}",
+            "MaxDeliveries": "2",
+            "Models": "{model1, model2}"
+          },
+          "Invariants": [
+            "SingleSettlement",
+            "FirstSignalWins",
+            "WorkerTerminatedAfterSettlement",
+            "TimerInactiveAfterSettlement",
+            "TypeOK"
+          ],
+          "Properties": null
+        },
+        "tool": {
+          "Image": "eclipse-temurin@sha256:49e21e16e3c86eb7816a44a67549910ed090fbeb40c29c525d58bf5e02e91b0f",
+          "JarSHA256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+        },
+        "tlc_version": "TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)"
+      }
+    }
+  }
+}
