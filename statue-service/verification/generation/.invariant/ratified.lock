@@ -1,5 +1,5 @@
 {
-  "decision": "D-0001",
+  "decision": "D-0002",
   "bounds": {
     "MaxTasks": "2"
   },
@@ -7,7 +7,7 @@
     {
       "name": "Spec",
       "kind": "spec",
-      "says": "The service starts with no tasks. Each submission queues a task, each worker finishes its task, a statue's model is served only for a task that succeeded, and once every task has ended the service waits.",
+      "says": "The service starts with no tasks. Each submission queues a task, each worker finishes its task, a statue's model is served only for a task that succeeded, a request from another site or for an engine the service doesn't know is refused without reserving or starting anything, and once every task has ended the service waits.",
       "sha256": "sha256:61889c4c81a65f9eb4d7d8a6c25319ab1d811c1baa5fdfc5a8cbac788b02afe6"
     },
     {
