@@ -4,6 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOpenscadCompiler } from "@/hooks/use-openscad-compiler";
+import { useStatueTask, type StatueDelivery } from "@/hooks/use-statue-task";
 import { downloadModel, slugify } from "@/lib/stl";
 import { stlTo3mf, stlTo3mfMulti, type ColorPart } from "@/lib/threemf";
 import { extractLastScadBlock } from "@/lib/scad/extract";
@@ -15,16 +16,7 @@ import { parseScadWarnings } from "@/lib/scad/errors";
 import { buildRepairMessage } from "@/lib/ai/system-prompt";
 import type { CompileFile, ScadError } from "@/lib/scad/types";
 import { describeUpload, meshAsset, processUpload, uploadPath, type UploadedAsset } from "@/lib/uploads";
-import {
-  createStatueTask,
-  fetchLatestStatueTask,
-  fetchStatueModel,
-  modelToPrintableStl,
-  pollStatueTask,
-  statueHealth,
-  type StatueEngine,
-  type StatueTaskStatus,
-} from "@/lib/statue";
+import { modelToPrintableStl, type StatueEngine } from "@/lib/statue";
 import {
   clearHistory,
   deleteHistoryItem,
@@ -46,8 +38,8 @@ import type { PillState } from "./status-pill";
 
 const MAX_REPAIR_ATTEMPTS = 2;
 const STATUE_TARGET_MAX_DIM_MM = 80;
-const STATUE_POLL_MS = 4000;
-const DISMISSED_STATUE_TASK_KEY = "ask3d:dismissed-statue-task";
+
+export type { StatueProgress } from "@/hooks/use-statue-task";
 
 export interface Suggestion {
   label: string;
@@ -120,17 +112,6 @@ function staticSuggestions(asset: UploadedAsset): Suggestion[] {
   ];
 }
 
-export interface StatueProgress {
-  uploadPath: string;
-  phase: "starting" | "generating" | "converting";
-  detail: string;
-  elapsedSeconds: number;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /**
  * Attached photos are data URLs re-sent with the whole history every turn;
  * keep file parts only on the most recent message that has any, so old
@@ -189,7 +170,6 @@ export default function AppShell({
   const [viewerError, setViewerError] = useState<ViewerError | null>(null);
   const [uploads, setUploads] = useState<UploadedAsset[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [statueProgress, setStatueProgress] = useState<StatueProgress | null>(null);
   const [statueEngine, setStatueEngine] = useState<StatueEngine>("hunyuan");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState<HistoryMeta[]>([]);
@@ -197,7 +177,18 @@ export default function AppShell({
   // Which upload the current suggestions belong to — a newer attachment or
   // a removal invalidates in-flight suggestion fetches for older ones.
   const suggestionsPathRef = useRef<string | null>(null);
-  const nameHintRef = useRef("model");
+
+  const firstUserMessage = messages.find((m) => m.role === "user" && !isAutoRepairMessage(m));
+  // Sent messages carry an appended "[attached files]" block — strip it so
+  // filenames and library prompts show only what the user actually typed.
+  const userText = (m: UIMessage | undefined) =>
+    m ? uiMessageText(m).split("\n\n[attached files]")[0].trim() || "model" : "model";
+  const nameHint = userText(firstUserMessage);
+  // Library entries are named by the LATEST request, not the session's
+  // first — otherwise a second unrelated model in the same chat would
+  // upsert-overwrite the first one's entry under the wrong name.
+  const lastUserMessage = messages.findLast((m) => m.role === "user" && !isAutoRepairMessage(m));
+  const libraryNameHint = userText(lastUserMessage);
 
   const refreshHistory = useCallback(async () => {
     try {
@@ -224,10 +215,6 @@ export default function AppShell({
     },
     [refreshHistory],
   );
-  const statueRunningRef = useRef(false);
-  // The sidecar task behind the model currently in the viewer — recorded so
-  // "Clear" can dismiss it and reload-adoption won't resurrect it.
-  const lastStatueTaskIdRef = useRef<string | null>(null);
   // Per-color STLs for multi-color 3MF export and tinted preview
   // (lib/scad/colors.ts) — built in the background after a
   // color-structured compile succeeds. State drives the viewer; the ref
@@ -481,14 +468,14 @@ export default function AppShell({
     captureHistory(
       {
         kind: "compiled",
-        name: `${slugify(nameHintRef.current)}.stl`,
+        name: `${slugify(libraryNameHint)}.stl`,
         mime: "model/stl",
-        prompt: nameHintRef.current,
+        prompt: libraryNameHint,
         scad: result.source,
       },
       result.stl,
     );
-  }, [result, captureHistory, beginRepairOrFail, applyColorParts, buildColorParts]);
+  }, [result, captureHistory, beginRepairOrFail, applyColorParts, buildColorParts, libraryNameHint]);
 
   // Compile failure → auto-repair (code faults) or surface directly:
   // timeouts mean the model is too heavy, environment failures mean the
@@ -661,70 +648,22 @@ export default function AppShell({
     setUploads(uploadsRef.current);
   }, []);
 
-  // Poll a sidecar task to completion, convert the model, and register the
-  // statue as a preview + uploaded mesh. Shared by fresh generations and
-  // adopted (post-reload) tasks.
-  const adoptStatueTask = useCallback(
-    async (taskId: string, baseName: string, chipPath: string | null) => {
-      lastStatueTaskIdRef.current = taskId;
-      let modelFormat: "glb" | "obj" | "stl" = "glb";
-      let genNote: string | undefined;
-      let repairWarning: string | null = null;
-      let pollFailures = 0;
-      for (;;) {
-        await sleep(STATUE_POLL_MS);
-        let s: StatueTaskStatus;
-        try {
-          s = await pollStatueTask(taskId);
-          pollFailures = 0;
-        } catch (error) {
-          // A blip (sidecar restarting, laptop waking from sleep) must not
-          // orphan a generation that is still running fine.
-          if (++pollFailures >= 5) throw error;
-          continue;
-        }
-        setStatueProgress({
-          uploadPath: chipPath ?? "",
-          phase: "generating",
-          detail: s.detail || s.status,
-          elapsedSeconds: s.elapsed_seconds,
-        });
-        if (s.status === "succeeded") {
-          modelFormat = s.model_format ?? "glb";
-          repairWarning = s.repair_warning ?? null;
-          // Provenance for the library: enough to reproduce this exact statue.
-          genNote =
-            [
-              s.engine,
-              s.seed != null ? `seed ${s.seed}` : null,
-              s.octree ? `octree ${s.octree}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ") || undefined;
-          break;
-        }
-        if (s.status === "failed") throw new Error(s.error || "generation failed");
-      }
-
-      setStatueProgress({
-        uploadPath: chipPath ?? "",
-        phase: "converting",
-        detail: "converting to STL…",
-        elapsedSeconds: 0,
-      });
-      const modelBuffer = await fetchStatueModel(taskId);
+  // Convert a delivered model and register the statue as a preview + uploaded
+  // mesh. The task hook keeps its guard until this callback finishes.
+  const handleStatueDelivery = useCallback(
+    async ({ name, model, format, sourcePath, note, repairWarning }: StatueDelivery) => {
       const { stl: statueStl, dims } = await modelToPrintableStl(
-        modelBuffer,
-        modelFormat,
+        model,
+        format,
         STATUE_TARGET_MAX_DIM_MM,
       );
       const statuePath = uploadPath(
-        `${baseName}-statue`,
+        name.replace(/\.stl$/, ""),
         "stl",
         new Set(uploadsRef.current.map((u) => u.path)),
       );
       const statueAsset: UploadedAsset = {
-        name: `${baseName}-statue.stl`,
+        name,
         path: statuePath,
         kind: "mesh",
         compileData: statueStl,
@@ -734,8 +673,8 @@ export default function AppShell({
         ...(await meshAsset(statueStl)),
         // The mesh is untextured; keep the photo so its colours can be
         // transferred later, long after the photo left the conversation.
-        sourcePhotoUrl: chipPath
-          ? uploadsRef.current.find((u) => u.path === chipPath)?.imageDataUrl
+        sourcePhotoUrl: sourcePath
+          ? uploadsRef.current.find((u) => u.path === sourcePath)?.imageDataUrl
           : undefined,
       };
       uploadsRef.current = [...uploadsRef.current, statueAsset];
@@ -753,51 +692,17 @@ export default function AppShell({
         );
       }
       captureHistory(
-        { kind: "statue", name: `${baseName}-statue.stl`, mime: "model/stl", dims, note: genNote },
+        { kind: "statue", name, mime: "model/stl", dims, note },
         statueStl,
       );
     },
     [captureHistory, replaceViewerModel],
   );
 
-  // A statue task keeps running on the sidecar through page reloads —
-  // adopt a running (or freshly finished) task instead of orphaning it.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const latest = await fetchLatestStatueTask();
-      if (cancelled || !latest || statueRunningRef.current) return;
-      // A task the user explicitly cleared stays gone across reloads.
-      let dismissed: string | null = null;
-      try {
-        dismissed = localStorage.getItem(DISMISSED_STATUE_TASK_KEY);
-      } catch {
-        // localStorage unavailable (private mode) — adoption just re-runs
-      }
-      if (latest.id === dismissed) return;
-      const active = latest.status === "queued" || latest.status === "running";
-      const fresh = latest.status === "succeeded" && latest.age_seconds < 600;
-      if (!active && !fresh) return;
-      statueRunningRef.current = true;
-      setStatueProgress({
-        uploadPath: "",
-        phase: "generating",
-        detail: "reconnected to a statue in progress…",
-        elapsedSeconds: 0,
-      });
-      try {
-        await adoptStatueTask(latest.id, "recovered", null);
-      } catch (error) {
-        setUploadError(error instanceof Error ? error.message : String(error));
-      } finally {
-        statueRunningRef.current = false;
-        setStatueProgress(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [adoptStatueTask]);
+  const { progress: statueProgress, start: startStatueTask, dismiss: dismissStatueTask } = useStatueTask({
+    onDeliver: handleStatueDelivery,
+    onError: setUploadError,
+  });
 
   // Library: restore puts an item back exactly as if freshly attached —
   // models additionally load straight into the viewer. No re-capture (the
@@ -851,73 +756,32 @@ export default function AppShell({
 
   // "Clear" in the viewer: empty it and remember the statue task behind the
   // model so reload-adoption doesn't resurrect it. A generation still in
-  // flight is unaffected — it delivers (and re-arms adoption) when done.
+  // flight is unaffected — it still delivers when done.
   const handleClearModel = useCallback(() => {
     replaceViewerModel(null);
-    if (lastStatueTaskIdRef.current) {
-      try {
-        localStorage.setItem(DISMISSED_STATUE_TASK_KEY, lastStatueTaskIdRef.current);
-      } catch {
-        // localStorage unavailable — clear still works for this session
-      }
-    }
-  }, [replaceViewerModel]);
+    dismissStatueTask();
+  }, [replaceViewerModel, dismissStatueTask]);
 
   // Photo → local TRELLIS.2 sidecar → GLB → printable STL → preview + a new
   // mesh upload the chat can build around via import().
   const handleMakeStatue = useCallback(async (path: string) => {
     const asset = uploadsRef.current.find((u) => u.path === path);
-    if (!asset || asset.kind !== "image" || !asset.file || statueRunningRef.current) return;
-    setUploadError(null);
-    statueRunningRef.current = true;
-    setStatueProgress({ uploadPath: path, phase: "starting", detail: "contacting statue service…", elapsedSeconds: 0 });
-    try {
-      const health = await statueHealth();
-      if (!health) {
-        throw new Error(
-          "The statue service is not running. Start it in a terminal:  uv run statue-service/server.py",
-        );
-      }
-      const engineReady =
-        statueEngine === "hunyuan" ? health.engines?.hunyuan : health.engines?.space;
-      if (!engineReady) {
-        throw new Error(
-          statueEngine === "hunyuan"
-            ? "Unlimited on-device generation needs a one-time install: run statue-service/setup.sh --local-engine (Apple silicon, ~15GB of weights). Or pick a cloud engine in the header — those work on any machine."
-            : "Run statue-service/setup.sh to turn on photo-to-3D. It is small, works on any machine, and takes about a minute.",
-        );
-      }
-      if (health.busy) throw new Error("The statue service is already generating a model.");
-
-      // Multi-photo engine: send every attached photo in chip order,
-      // starting from the clicked one. Slot order is Hunyuan-canonical
-      // (front, left, back, right) — see createStatueTask.
-      const images =
-        statueEngine === "hunyuan-space" || statueEngine === "hunyuan"
-          ? [
-              asset.file,
-              ...uploadsRef.current
-                .filter((u) => u.kind === "image" && u.path !== path && u.file)
-                .map((u) => u.file!)
-                .slice(0, 3),
-            ]
-          : [asset.file];
-      const taskId = await createStatueTask(images, statueEngine);
-      await adoptStatueTask(taskId, asset.name.replace(/\.[^.]*$/, ""), path);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setUploadError(
-        /ZeroGPU quota/i.test(message)
-          ? "Today's free GPU quota for statue generation is used up (about 2 statues/day on a free Hugging Face account). It resets 24 hours after the first generation — try again later."
-          : /already being generated/i.test(message)
-            ? "A statue is already generating — it keeps running even across page reloads, and the app reconnects to it automatically. Give it a minute or two."
-            : message,
-      );
-    } finally {
-      statueRunningRef.current = false;
-      setStatueProgress(null);
-    }
-  }, [statueEngine]);
+    if (!asset || asset.kind !== "image" || !asset.file) return;
+    // Multi-photo engine: send every attached photo in chip order,
+    // starting from the clicked one. Slot order is Hunyuan-canonical
+    // (front, left, back, right) — see createStatueTask.
+    const images =
+      statueEngine === "hunyuan-space" || statueEngine === "hunyuan"
+        ? [
+            asset.file,
+            ...uploadsRef.current
+              .filter((u) => u.kind === "image" && u.path !== path && u.file)
+              .map((u) => u.file!)
+              .slice(0, 3),
+          ]
+        : [asset.file];
+    await startStatueTask({ images, engine: statueEngine, sourceName: asset.name, sourcePath: path });
+  }, [statueEngine, startStatueTask]);
 
   const handleSuggestion = useCallback(
     (s: Suggestion) => {
@@ -967,18 +831,6 @@ export default function AppShell({
   else if (viewerError || error) pillState = { kind: "error" };
   else if (stl) pillState = { kind: "ready" };
   else pillState = { kind: "idle" };
-
-  const firstUserMessage = messages.find((m) => m.role === "user" && !isAutoRepairMessage(m));
-  // Sent messages carry an appended "[attached files]" block — strip it so
-  // filenames and library prompts show only what the user actually typed.
-  const userText = (m: UIMessage | undefined) =>
-    m ? uiMessageText(m).split("\n\n[attached files]")[0].trim() || "model" : "model";
-  const nameHint = userText(firstUserMessage);
-  // Library entries are named by the LATEST request, not the session's
-  // first — otherwise a second unrelated model in the same chat would
-  // upsert-overwrite the first one's entry under the wrong name.
-  const lastUserMessage = messages.findLast((m) => m.role === "user" && !isAutoRepairMessage(m));
-  nameHintRef.current = userText(lastUserMessage);
 
   return (
     <div className="relative flex h-dvh flex-col bg-[var(--background)] text-[var(--foreground)]">
