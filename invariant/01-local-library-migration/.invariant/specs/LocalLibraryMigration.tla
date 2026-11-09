@@ -168,8 +168,9 @@ NoDatabase ==
         writes, entryDone, entryWrites, retryItems>>
 
 OpenError ==
-    /\ phase = "open" /\ oldDatabase
-    /\ phase' = "return"
+    \* req.onerror resolves null; recording completion is safe only if shared.
+    /\ phase = "open" /\ oldDatabase /\ AllShared
+    /\ phase' = "markEmpty"
     /\ UNCHANGED <<storage, oldDatabase, localItems, shared, flag,
         deleteIssued, loads, todo, seen, unreadable, failed, metadataOK,
         writes, entryDone, entryWrites, retryItems>>
@@ -256,8 +257,7 @@ UploadFailure ==
 
 FinishItems ==
     /\ phase = "scan" /\ todo = {}
-    /\ phase' = IF metadataOK /\ unreadable = {} /\ failed = {}
-        THEN "mark" ELSE "return"
+    /\ phase' = IF AllShared THEN "mark" ELSE "return"
     /\ UNCHANGED <<storage, oldDatabase, localItems, shared, flag,
         deleteIssued, loads, todo, seen, unreadable, failed, metadataOK,
         writes, entryDone, entryWrites, retryItems>>
