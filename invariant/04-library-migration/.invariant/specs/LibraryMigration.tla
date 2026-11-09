@@ -97,30 +97,58 @@ CheckFlag ==
     /\ pc' = IF environment = "unavailable" THEN "unavailable"
               ELSE IF flag THEN "done" ELSE "check"
     /\ stage' = IF environment = "unavailable" \/ flag THEN stage ELSE "open"
+    /\ calls' = IF environment = "unavailable" \/ flag THEN calls ELSE Bump(calls, "open")
     /\ UNCHANGED <<environment, loads, shared, flag, dbOpen, metaRead, blobRead,
-                   failed, failedLoads, calls, sealed, completed>>
+                   failed, failedLoads, sealed, completed>>
+
+\* A call runs synchronously through the flag check and issues open before
+\* yielding. Keep the finer internal actions for the seven-state view too.
+BeginBrowserLoad ==
+    /\ pc \in {"ready", "done", "unavailable"} /\ loads < MaxLoads
+    /\ loads' = loads + 1
+    /\ pc' = IF environment = "unavailable" THEN "unavailable"
+              ELSE IF flag THEN "done" ELSE "check"
+    /\ stage' = IF environment = "unavailable" \/ flag THEN "flag" ELSE "open"
+    /\ calls' = IF environment = "unavailable" \/ flag THEN calls ELSE Bump(calls, "open")
+    /\ metaRead' = "idle" /\ blobRead' = "idle" /\ failed' = FALSE
+    /\ UNCHANGED <<environment, shared, flag, dbOpen, failedLoads, sealed, completed>>
 
 OpenDatabase ==
     /\ pc = "check" /\ stage = "open"
-    /\ calls' = Bump(calls, "open")
     /\ stage' = IF environment = "absent" THEN "absent" ELSE "meta"
     /\ dbOpen' = (environment # "absent")
     /\ metaRead' = "idle"
     /\ UNCHANGED <<pc, environment, loads, shared, flag, blobRead,
-                   failed, failedLoads, sealed, completed>>
+                   failed, failedLoads, calls, sealed, completed>>
 
 OpenFails ==
     /\ pc = "check" /\ stage = "open"
     /\ pc' = "ready" /\ failed' = TRUE /\ failedLoads' = failedLoads + 1
-    /\ calls' = Bump(calls, "open")
     /\ UNCHANGED <<environment, loads, shared, flag, dbOpen, stage,
-                   metaRead, blobRead, sealed, completed>>
+                   metaRead, blobRead, calls, sealed, completed>>
 
 StartMetadataRead ==
     /\ pc = "check" /\ stage = "meta" /\ metaRead = "idle"
     /\ metaRead' = "waiting" /\ calls' = Bump(calls, "read")
     /\ UNCHANGED <<pc, environment, loads, shared, flag, dbOpen, stage,
                    blobRead, failed, failedLoads, sealed, completed>>
+
+\* Open success drains directly into the first metadata request.
+OpenAndRead ==
+    /\ pc = "check" /\ stage = "open" /\ environment \in {"library", "empty"}
+    /\ dbOpen' = TRUE /\ stage' = "meta" /\ metaRead' = "waiting"
+    /\ calls' = Bump(calls, "read")
+    /\ UNCHANGED <<pc, environment, loads, shared, flag, blobRead,
+                   failed, failedLoads, sealed, completed>>
+
+OpenAbsentReturns(stored) ==
+    /\ pc = "check" /\ stage = "open" /\ environment = "absent"
+    /\ stage' = "absent" /\ pc' = IF stored THEN "done" ELSE "ready"
+    /\ flag' = stored /\ failed' = ~stored /\ completed' = stored
+    /\ failedLoads' = IF stored THEN failedLoads ELSE failedLoads + 1
+    /\ calls' = Bump(calls, "mark")
+    /\ sealed' = IF stored THEN calls' ELSE sealed
+    /\ UNCHANGED <<environment, loads, shared, dbOpen, metaRead, blobRead>>
 
 MetadataRequestSuccess ==
     /\ pc = "check" /\ stage = "meta" /\ metaRead = "waiting"
@@ -131,8 +159,9 @@ MetadataRequestSuccess ==
 MetadataTransactionComplete ==
     /\ pc = "check" /\ stage = "meta" /\ metaRead = "result"
     /\ metaRead' = "complete" /\ stage' = "list"
+    /\ calls' = Bump(calls, "list")
     /\ UNCHANGED <<pc, environment, loads, shared, flag, dbOpen,
-                   blobRead, failed, failedLoads, calls, sealed, completed>>
+                   blobRead, failed, failedLoads, sealed, completed>>
 
 ReadRejects(which, reason) ==
     /\ reason \in {"abort", "error"}
@@ -148,15 +177,21 @@ ReadRejects(which, reason) ==
 
 ListShared ==
     /\ pc = "check" /\ stage = "list"
-    /\ stage' = "choose" /\ calls' = Bump(calls, "list")
+    /\ stage' = "choose"
     /\ UNCHANGED <<pc, environment, loads, shared, flag, dbOpen,
-                   metaRead, blobRead, failed, failedLoads, sealed, completed>>
+                   metaRead, blobRead, failed, failedLoads, calls, sealed, completed>>
 
 ListFails ==
     /\ pc = "check" /\ stage = "list"
     /\ pc' = "ready" /\ failed' = TRUE /\ failedLoads' = failedLoads + 1 /\ dbOpen' = FALSE
-    /\ calls' = Bump(calls, "list")
-    /\ UNCHANGED <<environment, loads, shared, flag, stage, metaRead, blobRead, sealed, completed>>
+    /\ UNCHANGED <<environment, loads, shared, flag, stage, metaRead, blobRead, calls, sealed, completed>>
+
+ListStartsRead ==
+    /\ pc = "check" /\ stage = "list" /\ ~AllCopied
+    /\ pc' = "read" /\ stage' = "choose" /\ blobRead' = "waiting"
+    /\ calls' = Bump(calls, "read")
+    /\ UNCHANGED <<environment, loads, shared, flag, dbOpen,
+                   metaRead, failed, failedLoads, sealed, completed>>
 
 ChooseItem ==
     /\ pc = "check" /\ stage = "choose"
@@ -176,8 +211,9 @@ BlobRequestSuccess(result) ==
 BlobTransactionComplete ==
     /\ pc = "read" /\ blobRead = "result"
     /\ blobRead' = "complete" /\ pc' = "upload"
+    /\ calls' = Bump(calls, "upload")
     /\ UNCHANGED <<environment, loads, shared, flag, dbOpen, stage,
-                   metaRead, failed, failedLoads, calls, sealed, completed>>
+                   metaRead, failed, failedLoads, sealed, completed>>
 
 MissingBlob ==
     /\ pc = "read" /\ blobRead = "resultMissing"
@@ -189,16 +225,30 @@ MissingBlob ==
 UploadSucceeds ==
     /\ pc = "upload"
     /\ shared' = shared \cup {Item} /\ pc' = "check" /\ stage' = "mark"
-    /\ calls' = Bump(calls, "upload")
     /\ UNCHANGED <<environment, loads, flag, dbOpen, metaRead, blobRead,
-                   failed, failedLoads, sealed, completed>>
+                   failed, failedLoads, calls, sealed, completed>>
 
 UploadFails ==
     /\ pc = "upload"
     /\ pc' = "ready" /\ dbOpen' = FALSE /\ failed' = TRUE /\ failedLoads' = failedLoads + 1
-    /\ calls' = Bump(calls, "upload")
     /\ UNCHANGED <<environment, loads, shared, flag, stage,
-                   metaRead, blobRead, sealed, completed>>
+                   metaRead, blobRead, calls, sealed, completed>>
+
+\* A successful HTTP response can drain through mark, finally/close, deletion
+\* request and return without another browser event. A flag-write failure
+\* still closes and retains the source, including after a successful upload.
+ResponseFinishes(uploaded, stored) ==
+    /\ IF uploaded THEN pc = "upload"
+          ELSE pc = "check" /\ stage = "list" /\ AllCopied
+    /\ shared' = IF uploaded THEN shared \cup {Item} ELSE shared
+    /\ flag' = stored /\ dbOpen' = FALSE
+    /\ pc' = IF stored THEN "done" ELSE "ready"
+    /\ stage' = IF stored THEN "close" ELSE "mark"
+    /\ failed' = ~stored
+    /\ failedLoads' = IF stored THEN failedLoads ELSE failedLoads + 1
+    /\ calls' = IF stored THEN Bump(Bump(calls, "mark"), "delete") ELSE Bump(calls, "mark")
+    /\ completed' = stored /\ sealed' = IF stored THEN calls' ELSE sealed
+    /\ UNCHANGED <<environment, loads, metaRead, blobRead>>
 
 MarkComplete ==
     /\ pc = "check" /\ stage = "mark"
@@ -235,11 +285,14 @@ Idle == pc \in {"ready", "done", "unavailable"} /\ UNCHANGED vars
 
 Next ==
     \/ BeginLoad \/ CheckFlag \/ OpenDatabase \/ OpenFails \/ StartMetadataRead
+    \/ BeginBrowserLoad \/ OpenAndRead
+    \/ \E stored \in BOOLEAN : OpenAbsentReturns(stored)
     \/ MetadataRequestSuccess \/ MetadataTransactionComplete
     \/ \E which \in {"meta", "bytes"}, reason \in {"abort", "error"} : ReadRejects(which, reason)
-    \/ ListShared \/ ListFails \/ ChooseItem
+    \/ ListShared \/ ListFails \/ ChooseItem \/ ListStartsRead
     \/ \E result \in {"result", "resultMissing"} : BlobRequestSuccess(result)
     \/ BlobTransactionComplete \/ MissingBlob \/ UploadSucceeds \/ UploadFails
+    \/ \E uploaded, stored \in BOOLEAN : ResponseFinishes(uploaded, stored)
     \/ MarkComplete \/ MarkAbsent \/ MarkFails \/ CloseDatabase \/ RequestDeletion \/ Idle
 
 \* Old missing-blob continue: normal completion then forgets the uncopied item.
