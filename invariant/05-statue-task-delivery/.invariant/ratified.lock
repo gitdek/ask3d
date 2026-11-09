@@ -1,0 +1,97 @@
+{
+  "ratified": {
+    "by": "gitdek",
+    "at": "2026-11-09T22:28:41Z",
+    "issue": 27,
+    "comment": "https://github.com/gitdek/ask3d/issues/27#issuecomment-6753174817",
+    "proposal": "sha256:221985beb6a954b508fec3f075abbf768b41f0a43662c19030bbd2d21698b39f"
+  },
+  "bounds": {
+    "MaxMounts": "2",
+    "MaxTasks": "2",
+    "Names": "{\"source-statue.stl\", \"recovered-statue.stl\"}",
+    "PollLimit": "5"
+  },
+  "statements": [
+    {
+      "name": "Spec",
+      "kind": "spec",
+      "says": "The hook follows these lifecycle steps across at most two tasks and two page mounts.",
+      "sha256": "sha256:046412acca48e6ae0eb78919aab0ae6c89f882961a7e44e4719348c81ce65cec"
+    },
+    {
+      "name": "DeliveredAtMostOnce",
+      "kind": "invariant",
+      "says": "Each task has at most one completed delivery callback across all mounts; rejected callbacks do not count.",
+      "sha256": "sha256:0051b71afd3bc73bd368477bb51424874ce6bca5233a07bc4d940737c54c159b"
+    },
+    {
+      "name": "NamesNeverReplace",
+      "kind": "invariant",
+      "says": "Completed delivery callbacks for different tasks never use the same statue filename.",
+      "sha256": "sha256:f9161bb9c04e37c153cd734c79418e59acb9f1a3bb8fc9b7921fc2543cd1418d"
+    },
+    {
+      "name": "OneTaskAtATime",
+      "kind": "invariant",
+      "says": "Within a mount, start and recovery never enter over in-flight work, and the running guard stays held through download and delivery.",
+      "sha256": "sha256:9ef7b0d5bed23514eb9b77a63be3860949f64d47062388ff5d91ad5799289413"
+    },
+    {
+      "name": "ClearBlocksFutureRecovery",
+      "kind": "invariant",
+      "says": "Clear prevents later recovery of its task, while work adopted before Clear may still invoke and complete delivery.",
+      "sha256": "sha256:0c707a00a6fd796671c6ee4a00bb052ad6aeb715a7ef52fe56df8dae8018c988"
+    },
+    {
+      "name": "ErrorsReleaseTheHook",
+      "kind": "invariant",
+      "says": "A start, task, download, delivery, or fifth consecutive poll failure settles with its error and releases the hook for another start.",
+      "sha256": "sha256:45f6445865edcba75a1bd2e61342263144e48a471088e07c14e05ef0a18b2de0"
+    },
+    {
+      "name": "TypeOK",
+      "kind": "invariant",
+      "says": "The sidecar, mount, hook state, dismissal storage, and observation records stay within their declared types and bounds.",
+      "sha256": "sha256:8b25362bd0178e3974f01613eff5d55638b326c30b2e2b82c9e9149c5cecbb79"
+    },
+    {
+      "name": "CanDeliver",
+      "kind": "witness",
+      "says": "A successful task can complete its delivery callback.",
+      "sha256": "sha256:6fcc00b4214e7f64ce6c990b3d1fa1a650dc57cef51da70080fe42670e5e3dfa"
+    },
+    {
+      "name": "CanDeliverAfterClear",
+      "kind": "witness",
+      "says": "An already-adopted task can complete its delivery callback after Clear.",
+      "sha256": "sha256:62de426d7e0bc34b90ee1aba9ce6faf14253b0038db3184e2d3200a58a493edf"
+    },
+    {
+      "name": "CanRetryRejectedDelivery",
+      "kind": "witness",
+      "says": "A rejected delivery can later complete for the same task using the same filename.",
+      "sha256": "sha256:955cdc4d0e24ac4ab222d1e47e65fd6025034ce64f9301827a4347fde4579086"
+    },
+    {
+      "name": "CanStartAfterError",
+      "kind": "witness",
+      "says": "After an error the hook can accept another start.",
+      "sha256": "sha256:66a10104b46fa2ebce9e826be4afdec2c1599d9e59dfa4c90c1ae7a5e8dfb6fc"
+    },
+    {
+      "name": "ReplayCompletedTask",
+      "kind": "bug",
+      "says": "After a reload the unchanged hook recovers a previously delivered task and completes its delivery callback again.",
+      "expect": "DeliveredAtMostOnce",
+      "sha256": "sha256:59bc2c3733ac43c0f99e072e386510601396caf0a59e6d834443934a09ec24b4"
+    },
+    {
+      "name": "ReuseRecoveredName",
+      "kind": "bug",
+      "says": "The unchanged hook completes a recovered task under recovered-statue.stl after a different task was delivered under that name.",
+      "expect": "NamesNeverReplace",
+      "sha256": "sha256:b1ead40753a38d6d9b4fda650ab44ab1ed41f603ed7e99606b9a7b4a11f45b11"
+    }
+  ]
+}

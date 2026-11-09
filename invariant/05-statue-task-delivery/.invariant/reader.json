@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "fingerprint": "sha256:5c4f2fe7fd224a0c2ff9045e6eca8c194ac32bb0048f7524fa741e475c4d1478",
+  "limitation": {
+    "code": "too_large",
+    "actual": 320532,
+    "limit": 500,
+    "source": {
+      "module": "StatueTask",
+      "config": {
+        "Specification": "Spec",
+        "Constants": {
+          "MaxMounts": "2",
+          "MaxTasks": "2",
+          "Names": "{\"source-statue.stl\", \"recovered-statue.stl\"}",
+          "PollLimit": "5"
+        },
+        "Invariants": [
+          "DeliveredAtMostOnce",
+          "NamesNeverReplace",
+          "OneTaskAtATime",
+          "ClearBlocksFutureRecovery",
+          "ErrorsReleaseTheHook",
+          "TypeOK"
+        ],
+        "Properties": null
+      },
+      "tool": {
+        "Image": "eclipse-temurin@sha256:49e21e16e3c86eb7816a44a67549910ed090fbeb40c29c525d58bf5e02e91b0f",
+        "JarSHA256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+      },
+      "tlc_version": "TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)"
+    }
+  }
+}
