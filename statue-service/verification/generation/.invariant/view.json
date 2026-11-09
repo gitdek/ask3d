@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "state": [
+    {
+      "id": "empty",
+      "when": {
+        "eq": [
+          {
+            "var": "status"
+          },
+          "<<>>"
+        ]
+      },
+      "label": "No statues yet"
+    },
+    {
+      "id": "generating",
+      "when": {
+        "any": [
+          {
+            "eq": [
+              {
+                "var": "status"
+              },
+              "<<\"queued\">>"
+            ]
+          },
+          {
+            "eq": [
+              {
+                "var": "status"
+              },
+              "<<\"succeeded\", \"queued\">>"
+            ]
+          }
+        ]
+      },
+      "label": "Generating a statue; the slot is taken"
+    },
+    {
+      "id": "ready",
+      "when": true,
+      "label": "Statue ready; the slot is free"
+    }
+  ],
+  "step": [
+    {
+      "id": "submit",
+      "when": {
+        "eq": [
+          {
+            "action": true
+          },
+          "Submit"
+        ]
+      },
+      "label": "Submit a photo"
+    },
+    {
+      "id": "finish",
+      "when": {
+        "eq": [
+          {
+            "action": true
+          },
+          "Finish"
+        ]
+      },
+      "label": "The worker finishes the statue"
+    },
+    {
+      "id": "download",
+      "when": {
+        "eq": [
+          {
+            "action": true
+          },
+          "Download"
+        ]
+      },
+      "label": "Download the finished statue",
+      "hide": true
+    },
+    {
+      "id": "idle",
+      "when": {
+        "eq": [
+          {
+            "action": true
+          },
+          "Idle"
+        ]
+      },
+      "label": "Nothing left to submit",
+      "hide": true
+    }
+  ]
+}
