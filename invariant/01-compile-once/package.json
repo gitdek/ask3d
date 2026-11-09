@@ -1,6 +1,0 @@
-{
-  "description": "One-off compile settlement, written by Invariant and checked against its ratified TLA+ model.",
-  "name": "compile-once",
-  "private": true,
-  "type": "module"
-}
