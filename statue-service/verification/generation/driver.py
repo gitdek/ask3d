@@ -4,7 +4,8 @@ server.py runs unchanged, in mock mode, which its invocation sets. POST
 /tasks is create_task, held at the start of the worker it starts, so the
 queued task is observed before run_generation runs. Finish releases that
 worker, Download asks GET /tasks/{id}/model for the i-th task, and Idle
-reads /health.
+reads /health. SubmitCrossSite and SubmitUnknownEngine are POST /tasks from
+another site and for an engine the service doesn't know.
 """
 
 from tempfile import SpooledTemporaryFile
@@ -37,13 +38,27 @@ def photo():
     return UploadFile(f, filename="input.png")
 
 
+def post(headers=()):
+    return Request({"type": "http", "method": "POST", "path": "/tasks", "headers": list(headers)})
+
+
 def submit(life, state):
     if len(state["status"]) >= MaxTasks and not busy(state):
         return
-    request = Request({"type": "http", "method": "POST", "path": "/tasks", "headers": []})
+    request = post()
     after = state if busy(state) else {"status": state["status"] + ["queued"]}
     life.hold(app.create_task, request, photo(), engine="space",
               expected_before=state, expected_after=after)
+
+
+def submit_cross_site(life, state):
+    life.hold(app.create_task, post([(b"sec-fetch-site", b"cross-site")]), photo(), engine="space",
+              expected_before=state, expected_after=state)
+
+
+def submit_unknown_engine(life, state):
+    life.hold(app.create_task, post(), photo(), engine="unknown",
+              expected_before=state, expected_after=state)
 
 
 def finish(life, state):
@@ -64,6 +79,8 @@ def idle(life, state):
 def drive():
     explore(start, [
         Step("Submit", submit, refusal=Refusal(app.HTTPException, status_code=409)),
+        Step("SubmitCrossSite", submit_cross_site, refusal=Refusal(app.HTTPException, status_code=403)),
+        Step("SubmitUnknownEngine", submit_unknown_engine, refusal=Refusal(app.HTTPException, status_code=400)),
         Step("Finish", finish),
         Step("Download", download, [[i] for i in range(1, MaxTasks + 1)],
              refusal=Refusal(app.HTTPException, status_code=404)),

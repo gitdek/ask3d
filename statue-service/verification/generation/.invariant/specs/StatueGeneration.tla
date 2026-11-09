@@ -27,12 +27,18 @@ Download(i) == /\ i \in Tasks
                /\ status[i] = "succeeded"
                /\ UNCHANGED status
 
+\* A cross-site POST /tasks, or one for an engine the service doesn't
+\* know, is refused whatever the slot holds: it reserves nothing and starts
+\* nothing.
+SubmitCrossSite == FALSE
+SubmitUnknownEngine == FALSE
+
 \* Every task has ended and the environment submits no more.
 Idle == /\ ~Busy
         /\ Len(status) = MaxTasks
         /\ UNCHANGED status
 
-Next == Submit \/ Finish \/ Idle \/ \E i \in 1..MaxTasks : Download(i)
+Next == Submit \/ SubmitCrossSite \/ SubmitUnknownEngine \/ Finish \/ Idle \/ \E i \in 1..MaxTasks : Download(i)
 Spec == Init /\ [][Next]_vars
 
 OneAtATime == Cardinality({i \in Tasks : status[i] \in {"queued", "running"}}) <= 1
