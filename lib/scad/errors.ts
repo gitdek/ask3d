@@ -3,6 +3,7 @@ import type { ScadError } from "./types";
 // Known OpenSCAD stderr shapes (from the official playground's parser).
 const PARSER_ERROR_QUOTED = /^ERROR: Parser error in file "([^"]+)", line (\d+): (.*)$/;
 const PARSER_ERROR_BARE = /^ERROR: Parser error: (.*?) in file ([^",]+), line (\d+)$/;
+const RUNTIME_ERROR = /^ERROR: (.*) in file (.+), line (\d+)\.?$/;
 const GENERIC_ERROR = /^ERROR: (.*)$/;
 const WARNING = /^WARNING: (.*?),? in file ([^,]+), line (\d+)\.?/;
 
@@ -16,6 +17,11 @@ export function parseScadErrors(stderr: string[], exitCode: number | null): Scad
       continue;
     }
     m = raw.match(PARSER_ERROR_BARE);
+    if (m) {
+      errors.push({ message: m[1], file: m[2], line: Number(m[3]), raw });
+      continue;
+    }
+    m = raw.match(RUNTIME_ERROR);
     if (m) {
       errors.push({ message: m[1], file: m[2], line: Number(m[3]), raw });
       continue;
