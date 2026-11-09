@@ -352,24 +352,26 @@ describe("statue task hook", () => {
     download.resolve(f.model);
     await settle(host);
     expect(f.deliver).toHaveBeenCalledExactlyOnceWith({
-      taskId: "new-task", name: "My.figure.front-statue.stl", model: f.model,
+      taskId: "new-task", name: "My.figure.front-statue-new-task.stl", model: f.model,
       format: "obj", sourcePath: request.sourcePath,
       note: "hunyuan · seed 0 · octree 1024", repairWarning: "repair unavailable",
     });
     await host.value.start(request);
     expect(f.create).toHaveBeenCalledTimes(1);
     expect(host.value.progress?.phase).toBe("converting");
+    expect(f.storage.setItem).not.toHaveBeenCalled();
     delivery.resolve();
     await done;
     await settle(host);
     expectIdle(host);
-    expect(f.storage.setItem).not.toHaveBeenCalled();
+    expect(f.storage.setItem).toHaveBeenCalledExactlyOnceWith(KEY, "new-task");
     const again = host.value.start(input("space"));
     await settle(host);
     await tick(host);
     await again;
     expect(f.create).toHaveBeenCalledTimes(2);
     expect(f.deliver).toHaveBeenCalledTimes(2);
+    expect(f.storage.setItem).toHaveBeenCalledTimes(2);
   });
 
   it("resets poll failures after a response and stops at the fifth consecutive failure", async () => {
@@ -475,6 +477,7 @@ describe("statue task hook", () => {
     }
     expect(f.download).not.toHaveBeenCalled();
     expect(f.deliver).not.toHaveBeenCalled();
+    expect(f.storage.setItem).not.toHaveBeenCalled();
     for (const format of [null, "stl", "obj"] as const) {
       f.poll.mockResolvedValueOnce(status({ model_format: format }));
       const done = host.value.start({ ...input(), sourceName: "photo" });
@@ -482,11 +485,12 @@ describe("statue task hook", () => {
       await tick(host);
       await done;
       expect(f.deliver).toHaveBeenLastCalledWith({
-        taskId: "new-task", name: "photo-statue.stl", model: f.model,
+        taskId: "new-task", name: "photo-statue-new-task.stl", model: f.model,
         format: format ?? "glb", sourcePath: "/uploads/front.png",
         note: undefined, repairWarning: null,
       });
       expectIdle(host);
+      expect(f.values.get(KEY)).toBe("new-task");
     }
     f.download.mockRejectedValueOnce(new Error("could not download the generated model (503)"));
     const failedDownload = host.value.start(input());
@@ -495,6 +499,7 @@ describe("statue task hook", () => {
     await failedDownload;
     expect(f.errors[f.errors.length - 1]).toBe("could not download the generated model (503)");
     expect(f.deliver).toHaveBeenCalledTimes(3);
+    expect(f.storage.setItem).toHaveBeenCalledTimes(3);
     expectIdle(host);
     f.deliver.mockRejectedValueOnce(new Error("The generated model is empty"));
     const failedDelivery = host.value.start(input());
@@ -502,10 +507,11 @@ describe("statue task hook", () => {
     await tick(host);
     await failedDelivery;
     expect(f.errors[f.errors.length - 1]).toBe("The generated model is empty");
+    expect(f.storage.setItem).toHaveBeenCalledTimes(3);
     expectIdle(host);
   });
 
-  it("recovers only eligible latest tasks and retains the known recovery behavior", async () => {
+  it("recovers only eligible latest tasks and remembers completed deliveries", async () => {
     const useTask = await loadUseStatueTask();
     for (const remote of [null, latest({ status: "failed" }), latest({ age_seconds: 600 }), latest({ age_seconds: 900 })]) {
       const f = fixture();
@@ -534,28 +540,37 @@ describe("statue task hook", () => {
       await tick(host, 1);
       expect(f.poll).toHaveBeenCalledExactlyOnceWith(remote.id);
       const expected: Delivery = {
-        taskId: remote.id, name: "recovered-statue.stl", model: f.model,
+        taskId: remote.id, name: `recovered-statue-${remote.id}.stl`, model: f.model,
         format: "stl", sourcePath: null, note: undefined, repairWarning: null,
       };
       expect(f.deliveries).toEqual([expected]);
       expectIdle(host);
-      expect(f.storage.setItem).not.toHaveBeenCalled();
+      expect(f.storage.setItem).toHaveBeenCalledExactlyOnceWith(KEY, remote.id);
       host.unmount();
 
-      // Deliberately preserve the issue's first bug: delivered is not dismissed.
+      // A completed delivery stays dismissed across reloads.
       f.latest.mockResolvedValue(latest({ id: remote.id, age_seconds: 30 }));
       host = mount(useTask, f);
       await settle(host);
       await tick(host);
-      expect(f.deliveries).toEqual([expected, expected]);
+      expect(f.deliveries).toEqual([expected]);
+      expect(f.poll).toHaveBeenCalledExactlyOnceWith(remote.id);
+      expect(f.download).toHaveBeenCalledExactlyOnceWith(remote.id);
+      expectIdle(host);
       host.unmount();
 
-      // Deliberately preserve the other bug: another recovery has the same name.
+      // Another task can still recover, with its own name.
       f.latest.mockResolvedValue(latest({ id: "another-task" }));
       host = mount(useTask, f);
       await settle(host);
+      expect(f.values.get(KEY)).toBe(remote.id);
       await tick(host);
-      expect(f.deliveries[2]).toEqual({ ...expected, taskId: "another-task" });
+      expect(f.deliveries).toEqual([
+        expected,
+        { ...expected, taskId: "another-task", name: "recovered-statue-another-task.stl" },
+      ]);
+      expect(f.values.get(KEY)).toBe("another-task");
+      expectIdle(host);
       host.unmount();
     }
   });

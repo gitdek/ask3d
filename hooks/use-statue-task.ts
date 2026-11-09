@@ -50,14 +50,13 @@ export function useStatueTask({ onDeliver, onError }: {
 }) {
   const [progress, setProgress] = useState<StatueProgress | null>(null);
   const statueRunningRef = useRef(false);
-  // The last adopted task stays available for an explicit Clear, even after
-  // delivery. Finishing a task does not dismiss it across page reloads.
-  const lastStatueTaskIdRef = useRef<string | null>(null);
+  // Keep the last adopted task for Clear and its basename for same-page retries.
+  const lastStatueTaskRef = useRef<{ id: string; baseName: string } | null>(null);
 
   // Fresh generations and post-reload recovery share polling and delivery.
   const adoptStatueTask = useCallback(
     async (taskId: string, baseName: string, sourcePath: string | null) => {
-      lastStatueTaskIdRef.current = taskId;
+      lastStatueTaskRef.current = { id: taskId, baseName };
       let modelFormat: "glb" | "obj" | "stl" = "glb";
       let genNote: string | undefined;
       let repairWarning: string | null = null;
@@ -106,13 +105,14 @@ export function useStatueTask({ onDeliver, onError }: {
       const model = await fetchStatueModel(taskId);
       await onDeliver({
         taskId,
-        name: `${baseName}-statue.stl`,
+        name: `${baseName}-statue-${taskId}.stl`,
         model,
         format: modelFormat,
         sourcePath,
         note: genNote,
         repairWarning,
       });
+      setDismissedStatueTaskId(taskId);
     },
     [onDeliver],
   );
@@ -167,7 +167,7 @@ export function useStatueTask({ onDeliver, onError }: {
     (async () => {
       const latest = await fetchLatestStatueTask();
       if (cancelled || !latest || statueRunningRef.current) return;
-      // A task the user explicitly cleared stays gone across reloads.
+      // Completed deliveries and explicitly cleared tasks stay gone across reloads.
       if (latest.id === getDismissedStatueTaskId()) return;
       const active = latest.status === "queued" || latest.status === "running";
       const fresh = latest.status === "succeeded" && latest.age_seconds < 600;
@@ -180,7 +180,10 @@ export function useStatueTask({ onDeliver, onError }: {
         elapsedSeconds: 0,
       });
       try {
-        await adoptStatueTask(latest.id, "recovered", null);
+        const baseName = lastStatueTaskRef.current?.id === latest.id
+          ? lastStatueTaskRef.current.baseName
+          : "recovered";
+        await adoptStatueTask(latest.id, baseName, null);
       } catch (error) {
         onError(error instanceof Error ? error.message : String(error));
       } finally {
@@ -195,8 +198,8 @@ export function useStatueTask({ onDeliver, onError }: {
 
   // Clear only affects future reload-adoption; in-flight work still delivers.
   const dismiss = useCallback(() => {
-    if (lastStatueTaskIdRef.current) {
-      setDismissedStatueTaskId(lastStatueTaskIdRef.current);
+    if (lastStatueTaskRef.current) {
+      setDismissedStatueTaskId(lastStatueTaskRef.current.id);
     }
   }, []);
 
