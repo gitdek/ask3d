@@ -77,7 +77,8 @@ Requires Node >= 22. Prefer configuring by hand? Copy `.env.local.example` to
 
 | Piece | What it does |
 |---|---|
-| `components/app-shell.tsx` | The state machine: chat → extract → lint → compile → preview → repair |
+| `components/app-shell.tsx` | Chat → extract → lint → compile → preview → repair; statue photo selection and delivery: 80 mm conversion, mesh uploads with source photos, suggestions, viewer replacement, repair warnings and library saving |
+| `hooks/use-statue-task.ts` | Statue task start, polling, reload recovery, progress, naming and dismissal; guards one task through the component's delivery callback |
 | `workers/openscad-worker.ts` | Runs the compiler off the main thread; fresh instance per render, 60 s cap |
 | `lib/scad/` | Fence extraction, pre-compile lint, stderr parsing, connected-component checks |
 | `lib/threemf.ts` | Hand-rolled 3MF writer (the wasm build's own is broken) |

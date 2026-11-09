@@ -1,6 +1,24 @@
 // Same-origin path proxied to the sidecar by next.config.ts (see there for
 // why); the override exists for pointing at a sidecar on another machine.
 const SERVICE_URL = process.env.NEXT_PUBLIC_STATUE_SERVICE_URL ?? "/statue";
+const DISMISSED_STATUE_TASK_KEY = "ask3d:dismissed-statue-task";
+
+export function getDismissedStatueTaskId(): string | null {
+  try {
+    return localStorage.getItem(DISMISSED_STATUE_TASK_KEY);
+  } catch {
+    // localStorage unavailable (private mode) — adoption just re-runs
+    return null;
+  }
+}
+
+export function setDismissedStatueTaskId(taskId: string): void {
+  try {
+    localStorage.setItem(DISMISSED_STATUE_TASK_KEY, taskId);
+  } catch {
+    // localStorage unavailable — clear still works for this session
+  }
+}
 
 export type StatueEngine = "hunyuan" | "space" | "hunyuan-space";
 
