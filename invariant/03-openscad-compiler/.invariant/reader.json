@@ -1,0 +1,1439 @@
+{
+  "version": 1,
+  "fingerprint": "sha256:9204ce0bc9db504fb0863ee9ca36d284270e2bc5c17b940baac86d3a2ad3e2ab",
+  "chart": {
+    "version": 1,
+    "states": [
+      {
+        "id": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "label": "Cancelled; idle",
+        "members": [
+          "-1708446158164030855",
+          "-2640359139893196737",
+          "-4310782902517048035",
+          "-4930600913759427520",
+          "-5054604261505846114",
+          "-631370541163241637",
+          "-6436494169093070404",
+          "-6564992595188633246",
+          "-7196689177192985889",
+          "-8982794763387101187",
+          "159456216051672426",
+          "2107695649556131912",
+          "2995697324782676011"
+        ],
+        "initial_members": [],
+        "violated_rules": [],
+        "unavailable_actions": [
+          "Cancel",
+          "Finish"
+        ]
+      },
+      {
+        "id": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "label": "Compiling; worker and timer active",
+        "members": [
+          "-2809619416966891167",
+          "-4146495201206801341",
+          "-5707774266322970715",
+          "-5782794440160247161",
+          "-6459573732309920116",
+          "-7253325535461071156",
+          "-8925703138585627666",
+          "2334612462177219848",
+          "2591712018352253995",
+          "3156682262061753707",
+          "3164878429544615914",
+          "3798860336265080905",
+          "4359790974221564169",
+          "4544342278182068266"
+        ],
+        "initial_members": [],
+        "violated_rules": [],
+        "unavailable_actions": []
+      },
+      {
+        "id": "state-WyJEb25lOyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "label": "Done; worker and timer cleared",
+        "members": [
+          "-2565257354468825739",
+          "-4390751711652974505",
+          "-5592103016401879013",
+          "-5975624160076311239",
+          "-7678666717622671082",
+          "-7736437890665708290",
+          "-8495636221040690124",
+          "2298585323838663873",
+          "2430945383726465436",
+          "40741027598137827",
+          "4524702973841200318",
+          "4937471651083732513",
+          "6625893315130249987",
+          "7771588155845620940"
+        ],
+        "initial_members": [],
+        "violated_rules": [],
+        "unavailable_actions": [
+          "Finish"
+        ]
+      },
+      {
+        "id": "state-WyJFcnJvcjsgd29ya2VyIGFuZCB0aW1lciBjbGVhcmVkIixbXV0",
+        "label": "Error; worker and timer cleared",
+        "members": [
+          "-5102864994120160146",
+          "-5596475873989521470",
+          "-5970690860900246816",
+          "-6460288590980040372",
+          "-8163409757077589314",
+          "1398132772146960905",
+          "1956168480734897525",
+          "2322487293283494668",
+          "311661302530830423",
+          "3250672241916501905",
+          "3632786133499693747",
+          "4561490497320025646",
+          "6813583453248000167",
+          "869652995123957547"
+        ],
+        "initial_members": [],
+        "violated_rules": [],
+        "unavailable_actions": [
+          "Finish"
+        ]
+      },
+      {
+        "id": "state-WyJJZGxlIixbXV0",
+        "label": "Idle",
+        "members": [
+          "3159933177328433397"
+        ],
+        "initial_members": [
+          "3159933177328433397"
+        ],
+        "violated_rules": [],
+        "unavailable_actions": [
+          "Finish",
+          "IgnoreStaleTimeout",
+          "IgnoreStaleWorker"
+        ]
+      },
+      {
+        "id": "state-WyJUaW1lb3V0OyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "label": "Timeout; worker and timer cleared",
+        "members": [
+          "-2482302070630320968",
+          "-6564173004314700696",
+          "1166637477633438387",
+          "2259587109641095181",
+          "319113899647093471",
+          "3999879806791112637",
+          "4449629328169952184",
+          "8692064188213128763"
+        ],
+        "initial_members": [],
+        "violated_rules": [],
+        "unavailable_actions": [
+          "Finish",
+          "IgnoreStaleTimeout"
+        ]
+      }
+    ],
+    "initial": [
+      "state-WyJJZGxlIixbXV0"
+    ],
+    "arrows": [
+      {
+        "from": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "to": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "label": "Ignore stale timeout",
+        "members": [
+          {
+            "From": "-1708446158164030855",
+            "Action": "IgnoreStaleTimeout",
+            "To": "-631370541163241637"
+          },
+          {
+            "From": "-2640359139893196737",
+            "Action": "IgnoreStaleTimeout",
+            "To": "-4310782902517048035"
+          },
+          {
+            "From": "-7196689177192985889",
+            "Action": "IgnoreStaleTimeout",
+            "To": "-8982794763387101187"
+          },
+          {
+            "From": "159456216051672426",
+            "Action": "IgnoreStaleTimeout",
+            "To": "2107695649556131912"
+          },
+          {
+            "From": "159456216051672426",
+            "Action": "IgnoreStaleTimeout",
+            "To": "2107695649556131912"
+          }
+        ],
+        "count": 5,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "to": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "label": "Ignore stale worker callback",
+        "members": [
+          {
+            "From": "-1708446158164030855",
+            "Action": "IgnoreStaleWorker",
+            "To": "-1708446158164030855"
+          },
+          {
+            "From": "-2640359139893196737",
+            "Action": "IgnoreStaleWorker",
+            "To": "-2640359139893196737"
+          },
+          {
+            "From": "-4310782902517048035",
+            "Action": "IgnoreStaleWorker",
+            "To": "-4310782902517048035"
+          },
+          {
+            "From": "-631370541163241637",
+            "Action": "IgnoreStaleWorker",
+            "To": "-631370541163241637"
+          },
+          {
+            "From": "-7196689177192985889",
+            "Action": "IgnoreStaleWorker",
+            "To": "-7196689177192985889"
+          },
+          {
+            "From": "-8982794763387101187",
+            "Action": "IgnoreStaleWorker",
+            "To": "-8982794763387101187"
+          },
+          {
+            "From": "159456216051672426",
+            "Action": "IgnoreStaleWorker",
+            "To": "159456216051672426"
+          },
+          {
+            "From": "159456216051672426",
+            "Action": "IgnoreStaleWorker",
+            "To": "159456216051672426"
+          },
+          {
+            "From": "2107695649556131912",
+            "Action": "IgnoreStaleWorker",
+            "To": "2107695649556131912"
+          },
+          {
+            "From": "2107695649556131912",
+            "Action": "IgnoreStaleWorker",
+            "To": "2107695649556131912"
+          }
+        ],
+        "count": 10,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "to": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "label": "Start or replace compile",
+        "members": [
+          {
+            "From": "-5054604261505846114",
+            "Action": "Compile",
+            "To": "4359790974221564169"
+          },
+          {
+            "From": "-6436494169093070404",
+            "Action": "Compile",
+            "To": "2591712018352253995"
+          },
+          {
+            "From": "-7196689177192985889",
+            "Action": "Compile",
+            "To": "-5782794440160247161"
+          },
+          {
+            "From": "-8982794763387101187",
+            "Action": "Compile",
+            "To": "-5707774266322970715"
+          },
+          {
+            "From": "2995697324782676011",
+            "Action": "Compile",
+            "To": "3164878429544615914"
+          }
+        ],
+        "count": 5,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "to": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "label": "Wait or ignore mismatched message",
+        "members": [
+          {
+            "From": "-1708446158164030855",
+            "Action": "Wait",
+            "To": "-1708446158164030855"
+          },
+          {
+            "From": "-2640359139893196737",
+            "Action": "Wait",
+            "To": "-2640359139893196737"
+          },
+          {
+            "From": "-4310782902517048035",
+            "Action": "Wait",
+            "To": "-4310782902517048035"
+          },
+          {
+            "From": "-4930600913759427520",
+            "Action": "Wait",
+            "To": "-4930600913759427520"
+          },
+          {
+            "From": "-5054604261505846114",
+            "Action": "Wait",
+            "To": "-5054604261505846114"
+          },
+          {
+            "From": "-631370541163241637",
+            "Action": "Wait",
+            "To": "-631370541163241637"
+          },
+          {
+            "From": "-6436494169093070404",
+            "Action": "Wait",
+            "To": "-6436494169093070404"
+          },
+          {
+            "From": "-6564992595188633246",
+            "Action": "Wait",
+            "To": "-6564992595188633246"
+          },
+          {
+            "From": "-7196689177192985889",
+            "Action": "Wait",
+            "To": "-7196689177192985889"
+          },
+          {
+            "From": "-8982794763387101187",
+            "Action": "Wait",
+            "To": "-8982794763387101187"
+          },
+          {
+            "From": "159456216051672426",
+            "Action": "Wait",
+            "To": "159456216051672426"
+          },
+          {
+            "From": "2107695649556131912",
+            "Action": "Wait",
+            "To": "2107695649556131912"
+          },
+          {
+            "From": "2995697324782676011",
+            "Action": "Wait",
+            "To": "2995697324782676011"
+          }
+        ],
+        "count": 13,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "to": "state-WyJEb25lOyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "label": "Apply current outcome; teardown",
+        "members": [
+          {
+            "From": "-2809619416966891167",
+            "Action": "Finish",
+            "To": "-7678666717622671082"
+          },
+          {
+            "From": "-4146495201206801341",
+            "Action": "Finish",
+            "To": "-8495636221040690124"
+          },
+          {
+            "From": "-5707774266322970715",
+            "Action": "Finish",
+            "To": "4524702973841200318"
+          },
+          {
+            "From": "-5782794440160247161",
+            "Action": "Finish",
+            "To": "2430945383726465436"
+          },
+          {
+            "From": "-6459573732309920116",
+            "Action": "Finish",
+            "To": "7771588155845620940"
+          },
+          {
+            "From": "-7253325535461071156",
+            "Action": "Finish",
+            "To": "40741027598137827"
+          },
+          {
+            "From": "-8925703138585627666",
+            "Action": "Finish",
+            "To": "2298585323838663873"
+          },
+          {
+            "From": "2334612462177219848",
+            "Action": "Finish",
+            "To": "-5975624160076311239"
+          },
+          {
+            "From": "2591712018352253995",
+            "Action": "Finish",
+            "To": "-4390751711652974505"
+          },
+          {
+            "From": "3156682262061753707",
+            "Action": "Finish",
+            "To": "6625893315130249987"
+          },
+          {
+            "From": "3164878429544615914",
+            "Action": "Finish",
+            "To": "-7736437890665708290"
+          },
+          {
+            "From": "3798860336265080905",
+            "Action": "Finish",
+            "To": "4937471651083732513"
+          },
+          {
+            "From": "4359790974221564169",
+            "Action": "Finish",
+            "To": "-2565257354468825739"
+          },
+          {
+            "From": "4544342278182068266",
+            "Action": "Finish",
+            "To": "-5592103016401879013"
+          }
+        ],
+        "count": 14,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "to": "state-WyJFcnJvcjsgd29ya2VyIGFuZCB0aW1lciBjbGVhcmVkIixbXV0",
+        "label": "Apply current outcome; teardown",
+        "members": [
+          {
+            "From": "-2809619416966891167",
+            "Action": "Finish",
+            "To": "4561490497320025646"
+          },
+          {
+            "From": "-4146495201206801341",
+            "Action": "Finish",
+            "To": "2322487293283494668"
+          },
+          {
+            "From": "-5707774266322970715",
+            "Action": "Finish",
+            "To": "-5970690860900246816"
+          },
+          {
+            "From": "-5782794440160247161",
+            "Action": "Finish",
+            "To": "-5596475873989521470"
+          },
+          {
+            "From": "-6459573732309920116",
+            "Action": "Finish",
+            "To": "6813583453248000167"
+          },
+          {
+            "From": "-7253325535461071156",
+            "Action": "Finish",
+            "To": "3632786133499693747"
+          },
+          {
+            "From": "-8925703138585627666",
+            "Action": "Finish",
+            "To": "3250672241916501905"
+          },
+          {
+            "From": "2334612462177219848",
+            "Action": "Finish",
+            "To": "311661302530830423"
+          },
+          {
+            "From": "2591712018352253995",
+            "Action": "Finish",
+            "To": "1398132772146960905"
+          },
+          {
+            "From": "3156682262061753707",
+            "Action": "Finish",
+            "To": "-6460288590980040372"
+          },
+          {
+            "From": "3164878429544615914",
+            "Action": "Finish",
+            "To": "-8163409757077589314"
+          },
+          {
+            "From": "3798860336265080905",
+            "Action": "Finish",
+            "To": "-5102864994120160146"
+          },
+          {
+            "From": "4359790974221564169",
+            "Action": "Finish",
+            "To": "869652995123957547"
+          },
+          {
+            "From": "4544342278182068266",
+            "Action": "Finish",
+            "To": "1956168480734897525"
+          }
+        ],
+        "count": 14,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "to": "state-WyJUaW1lb3V0OyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "label": "Apply current outcome; teardown",
+        "members": [
+          {
+            "From": "-2809619416966891167",
+            "Action": "Finish",
+            "To": "1166637477633438387"
+          },
+          {
+            "From": "-5782794440160247161",
+            "Action": "Finish",
+            "To": "4449629328169952184"
+          },
+          {
+            "From": "-6459573732309920116",
+            "Action": "Finish",
+            "To": "-2482302070630320968"
+          },
+          {
+            "From": "-7253325535461071156",
+            "Action": "Finish",
+            "To": "-6564173004314700696"
+          },
+          {
+            "From": "3164878429544615914",
+            "Action": "Finish",
+            "To": "3999879806791112637"
+          },
+          {
+            "From": "3798860336265080905",
+            "Action": "Finish",
+            "To": "319113899647093471"
+          },
+          {
+            "From": "4359790974221564169",
+            "Action": "Finish",
+            "To": "8692064188213128763"
+          },
+          {
+            "From": "4544342278182068266",
+            "Action": "Finish",
+            "To": "2259587109641095181"
+          }
+        ],
+        "count": 8,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "to": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "label": "Cancel and invalidate job",
+        "members": [
+          {
+            "From": "-2809619416966891167",
+            "Action": "Cancel",
+            "To": "159456216051672426"
+          },
+          {
+            "From": "-4146495201206801341",
+            "Action": "Cancel",
+            "To": "2107695649556131912"
+          },
+          {
+            "From": "-6459573732309920116",
+            "Action": "Cancel",
+            "To": "-7196689177192985889"
+          },
+          {
+            "From": "-7253325535461071156",
+            "Action": "Cancel",
+            "To": "-2640359139893196737"
+          },
+          {
+            "From": "-8925703138585627666",
+            "Action": "Cancel",
+            "To": "-4310782902517048035"
+          }
+        ],
+        "count": 5,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "to": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "label": "Ignore stale timeout",
+        "members": [
+          {
+            "From": "-2809619416966891167",
+            "Action": "IgnoreStaleTimeout",
+            "To": "-4146495201206801341"
+          },
+          {
+            "From": "-5782794440160247161",
+            "Action": "IgnoreStaleTimeout",
+            "To": "-5707774266322970715"
+          },
+          {
+            "From": "3798860336265080905",
+            "Action": "IgnoreStaleTimeout",
+            "To": "3156682262061753707"
+          }
+        ],
+        "count": 3,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "to": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "label": "Ignore stale worker callback",
+        "members": [
+          {
+            "From": "-2809619416966891167",
+            "Action": "IgnoreStaleWorker",
+            "To": "-2809619416966891167"
+          },
+          {
+            "From": "-4146495201206801341",
+            "Action": "IgnoreStaleWorker",
+            "To": "-4146495201206801341"
+          },
+          {
+            "From": "-5707774266322970715",
+            "Action": "IgnoreStaleWorker",
+            "To": "-5707774266322970715"
+          },
+          {
+            "From": "-5782794440160247161",
+            "Action": "IgnoreStaleWorker",
+            "To": "-5782794440160247161"
+          },
+          {
+            "From": "3156682262061753707",
+            "Action": "IgnoreStaleWorker",
+            "To": "3156682262061753707"
+          },
+          {
+            "From": "3798860336265080905",
+            "Action": "IgnoreStaleWorker",
+            "To": "3798860336265080905"
+          }
+        ],
+        "count": 6,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "to": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "label": "Start or replace compile",
+        "members": [
+          {
+            "From": "-6459573732309920116",
+            "Action": "Compile",
+            "To": "-2809619416966891167"
+          },
+          {
+            "From": "3164878429544615914",
+            "Action": "Compile",
+            "To": "3798860336265080905"
+          }
+        ],
+        "count": 2,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "to": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "label": "Wait or ignore mismatched message",
+        "members": [
+          {
+            "From": "-2809619416966891167",
+            "Action": "Wait",
+            "To": "-2809619416966891167"
+          },
+          {
+            "From": "-4146495201206801341",
+            "Action": "Wait",
+            "To": "-4146495201206801341"
+          },
+          {
+            "From": "-5707774266322970715",
+            "Action": "Wait",
+            "To": "-5707774266322970715"
+          },
+          {
+            "From": "-5782794440160247161",
+            "Action": "Wait",
+            "To": "-5782794440160247161"
+          },
+          {
+            "From": "-6459573732309920116",
+            "Action": "Wait",
+            "To": "-6459573732309920116"
+          },
+          {
+            "From": "-7253325535461071156",
+            "Action": "Wait",
+            "To": "-7253325535461071156"
+          },
+          {
+            "From": "-8925703138585627666",
+            "Action": "Wait",
+            "To": "-8925703138585627666"
+          },
+          {
+            "From": "2334612462177219848",
+            "Action": "Wait",
+            "To": "2334612462177219848"
+          },
+          {
+            "From": "2591712018352253995",
+            "Action": "Wait",
+            "To": "2591712018352253995"
+          },
+          {
+            "From": "3156682262061753707",
+            "Action": "Wait",
+            "To": "3156682262061753707"
+          },
+          {
+            "From": "3164878429544615914",
+            "Action": "Wait",
+            "To": "3164878429544615914"
+          },
+          {
+            "From": "3798860336265080905",
+            "Action": "Wait",
+            "To": "3798860336265080905"
+          },
+          {
+            "From": "4359790974221564169",
+            "Action": "Wait",
+            "To": "4359790974221564169"
+          },
+          {
+            "From": "4544342278182068266",
+            "Action": "Wait",
+            "To": "4544342278182068266"
+          }
+        ],
+        "count": 14,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJEb25lOyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "to": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "label": "Cancel and invalidate job",
+        "members": [
+          {
+            "From": "-7678666717622671082",
+            "Action": "Cancel",
+            "To": "-1708446158164030855"
+          },
+          {
+            "From": "-8495636221040690124",
+            "Action": "Cancel",
+            "To": "-631370541163241637"
+          },
+          {
+            "From": "2298585323838663873",
+            "Action": "Cancel",
+            "To": "-6564992595188633246"
+          },
+          {
+            "From": "40741027598137827",
+            "Action": "Cancel",
+            "To": "-4930600913759427520"
+          },
+          {
+            "From": "7771588155845620940",
+            "Action": "Cancel",
+            "To": "-5054604261505846114"
+          }
+        ],
+        "count": 5,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJEb25lOyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "to": "state-WyJEb25lOyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "label": "Ignore stale timeout",
+        "members": [
+          {
+            "From": "-7678666717622671082",
+            "Action": "IgnoreStaleTimeout",
+            "To": "-8495636221040690124"
+          },
+          {
+            "From": "2430945383726465436",
+            "Action": "IgnoreStaleTimeout",
+            "To": "4524702973841200318"
+          },
+          {
+            "From": "4937471651083732513",
+            "Action": "IgnoreStaleTimeout",
+            "To": "6625893315130249987"
+          }
+        ],
+        "count": 3,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJEb25lOyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "to": "state-WyJEb25lOyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "label": "Ignore stale worker callback",
+        "members": [
+          {
+            "From": "-7678666717622671082",
+            "Action": "IgnoreStaleWorker",
+            "To": "-7678666717622671082"
+          },
+          {
+            "From": "-8495636221040690124",
+            "Action": "IgnoreStaleWorker",
+            "To": "-8495636221040690124"
+          },
+          {
+            "From": "2430945383726465436",
+            "Action": "IgnoreStaleWorker",
+            "To": "2430945383726465436"
+          },
+          {
+            "From": "4524702973841200318",
+            "Action": "IgnoreStaleWorker",
+            "To": "4524702973841200318"
+          },
+          {
+            "From": "4937471651083732513",
+            "Action": "IgnoreStaleWorker",
+            "To": "4937471651083732513"
+          },
+          {
+            "From": "6625893315130249987",
+            "Action": "IgnoreStaleWorker",
+            "To": "6625893315130249987"
+          }
+        ],
+        "count": 6,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJEb25lOyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "to": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "label": "Start or replace compile",
+        "members": [
+          {
+            "From": "-7736437890665708290",
+            "Action": "Compile",
+            "To": "4544342278182068266"
+          },
+          {
+            "From": "7771588155845620940",
+            "Action": "Compile",
+            "To": "-7253325535461071156"
+          }
+        ],
+        "count": 2,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJEb25lOyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "to": "state-WyJEb25lOyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "label": "Wait or ignore mismatched message",
+        "members": [
+          {
+            "From": "-2565257354468825739",
+            "Action": "Wait",
+            "To": "-2565257354468825739"
+          },
+          {
+            "From": "-4390751711652974505",
+            "Action": "Wait",
+            "To": "-4390751711652974505"
+          },
+          {
+            "From": "-5592103016401879013",
+            "Action": "Wait",
+            "To": "-5592103016401879013"
+          },
+          {
+            "From": "-5975624160076311239",
+            "Action": "Wait",
+            "To": "-5975624160076311239"
+          },
+          {
+            "From": "-7678666717622671082",
+            "Action": "Wait",
+            "To": "-7678666717622671082"
+          },
+          {
+            "From": "-7736437890665708290",
+            "Action": "Wait",
+            "To": "-7736437890665708290"
+          },
+          {
+            "From": "-8495636221040690124",
+            "Action": "Wait",
+            "To": "-8495636221040690124"
+          },
+          {
+            "From": "2298585323838663873",
+            "Action": "Wait",
+            "To": "2298585323838663873"
+          },
+          {
+            "From": "2430945383726465436",
+            "Action": "Wait",
+            "To": "2430945383726465436"
+          },
+          {
+            "From": "40741027598137827",
+            "Action": "Wait",
+            "To": "40741027598137827"
+          },
+          {
+            "From": "4524702973841200318",
+            "Action": "Wait",
+            "To": "4524702973841200318"
+          },
+          {
+            "From": "4937471651083732513",
+            "Action": "Wait",
+            "To": "4937471651083732513"
+          },
+          {
+            "From": "6625893315130249987",
+            "Action": "Wait",
+            "To": "6625893315130249987"
+          },
+          {
+            "From": "7771588155845620940",
+            "Action": "Wait",
+            "To": "7771588155845620940"
+          }
+        ],
+        "count": 14,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJFcnJvcjsgd29ya2VyIGFuZCB0aW1lciBjbGVhcmVkIixbXV0",
+        "to": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "label": "Cancel and invalidate job",
+        "members": [
+          {
+            "From": "2322487293283494668",
+            "Action": "Cancel",
+            "To": "-631370541163241637"
+          },
+          {
+            "From": "3250672241916501905",
+            "Action": "Cancel",
+            "To": "-6564992595188633246"
+          },
+          {
+            "From": "3632786133499693747",
+            "Action": "Cancel",
+            "To": "-4930600913759427520"
+          },
+          {
+            "From": "4561490497320025646",
+            "Action": "Cancel",
+            "To": "-1708446158164030855"
+          },
+          {
+            "From": "6813583453248000167",
+            "Action": "Cancel",
+            "To": "-5054604261505846114"
+          }
+        ],
+        "count": 5,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJFcnJvcjsgd29ya2VyIGFuZCB0aW1lciBjbGVhcmVkIixbXV0",
+        "to": "state-WyJFcnJvcjsgd29ya2VyIGFuZCB0aW1lciBjbGVhcmVkIixbXV0",
+        "label": "Ignore stale timeout",
+        "members": [
+          {
+            "From": "-5102864994120160146",
+            "Action": "IgnoreStaleTimeout",
+            "To": "-6460288590980040372"
+          },
+          {
+            "From": "-5596475873989521470",
+            "Action": "IgnoreStaleTimeout",
+            "To": "-5970690860900246816"
+          },
+          {
+            "From": "4561490497320025646",
+            "Action": "IgnoreStaleTimeout",
+            "To": "2322487293283494668"
+          }
+        ],
+        "count": 3,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJFcnJvcjsgd29ya2VyIGFuZCB0aW1lciBjbGVhcmVkIixbXV0",
+        "to": "state-WyJFcnJvcjsgd29ya2VyIGFuZCB0aW1lciBjbGVhcmVkIixbXV0",
+        "label": "Ignore stale worker callback",
+        "members": [
+          {
+            "From": "-5102864994120160146",
+            "Action": "IgnoreStaleWorker",
+            "To": "-5102864994120160146"
+          },
+          {
+            "From": "-5596475873989521470",
+            "Action": "IgnoreStaleWorker",
+            "To": "-5596475873989521470"
+          },
+          {
+            "From": "-5970690860900246816",
+            "Action": "IgnoreStaleWorker",
+            "To": "-5970690860900246816"
+          },
+          {
+            "From": "-6460288590980040372",
+            "Action": "IgnoreStaleWorker",
+            "To": "-6460288590980040372"
+          },
+          {
+            "From": "2322487293283494668",
+            "Action": "IgnoreStaleWorker",
+            "To": "2322487293283494668"
+          },
+          {
+            "From": "4561490497320025646",
+            "Action": "IgnoreStaleWorker",
+            "To": "4561490497320025646"
+          }
+        ],
+        "count": 6,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJFcnJvcjsgd29ya2VyIGFuZCB0aW1lciBjbGVhcmVkIixbXV0",
+        "to": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "label": "Start or replace compile",
+        "members": [
+          {
+            "From": "-8163409757077589314",
+            "Action": "Compile",
+            "To": "4544342278182068266"
+          },
+          {
+            "From": "6813583453248000167",
+            "Action": "Compile",
+            "To": "-7253325535461071156"
+          }
+        ],
+        "count": 2,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJFcnJvcjsgd29ya2VyIGFuZCB0aW1lciBjbGVhcmVkIixbXV0",
+        "to": "state-WyJFcnJvcjsgd29ya2VyIGFuZCB0aW1lciBjbGVhcmVkIixbXV0",
+        "label": "Wait or ignore mismatched message",
+        "members": [
+          {
+            "From": "-5102864994120160146",
+            "Action": "Wait",
+            "To": "-5102864994120160146"
+          },
+          {
+            "From": "-5596475873989521470",
+            "Action": "Wait",
+            "To": "-5596475873989521470"
+          },
+          {
+            "From": "-5970690860900246816",
+            "Action": "Wait",
+            "To": "-5970690860900246816"
+          },
+          {
+            "From": "-6460288590980040372",
+            "Action": "Wait",
+            "To": "-6460288590980040372"
+          },
+          {
+            "From": "-8163409757077589314",
+            "Action": "Wait",
+            "To": "-8163409757077589314"
+          },
+          {
+            "From": "1398132772146960905",
+            "Action": "Wait",
+            "To": "1398132772146960905"
+          },
+          {
+            "From": "1956168480734897525",
+            "Action": "Wait",
+            "To": "1956168480734897525"
+          },
+          {
+            "From": "2322487293283494668",
+            "Action": "Wait",
+            "To": "2322487293283494668"
+          },
+          {
+            "From": "311661302530830423",
+            "Action": "Wait",
+            "To": "311661302530830423"
+          },
+          {
+            "From": "3250672241916501905",
+            "Action": "Wait",
+            "To": "3250672241916501905"
+          },
+          {
+            "From": "3632786133499693747",
+            "Action": "Wait",
+            "To": "3632786133499693747"
+          },
+          {
+            "From": "4561490497320025646",
+            "Action": "Wait",
+            "To": "4561490497320025646"
+          },
+          {
+            "From": "6813583453248000167",
+            "Action": "Wait",
+            "To": "6813583453248000167"
+          },
+          {
+            "From": "869652995123957547",
+            "Action": "Wait",
+            "To": "869652995123957547"
+          }
+        ],
+        "count": 14,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJJZGxlIixbXV0",
+        "to": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "label": "Cancel and invalidate job",
+        "members": [
+          {
+            "From": "3159933177328433397",
+            "Action": "Cancel",
+            "To": "2995697324782676011"
+          }
+        ],
+        "count": 1,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJJZGxlIixbXV0",
+        "to": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "label": "Start or replace compile",
+        "members": [
+          {
+            "From": "3159933177328433397",
+            "Action": "Compile",
+            "To": "-6459573732309920116"
+          }
+        ],
+        "count": 1,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJJZGxlIixbXV0",
+        "to": "state-WyJJZGxlIixbXV0",
+        "label": "Wait or ignore mismatched message",
+        "members": [
+          {
+            "From": "3159933177328433397",
+            "Action": "Wait",
+            "To": "3159933177328433397"
+          }
+        ],
+        "count": 1,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJUaW1lb3V0OyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "to": "state-WyJDYW5jZWxsZWQ7IGlkbGUiLFtdXQ",
+        "label": "Cancel and invalidate job",
+        "members": [
+          {
+            "From": "-2482302070630320968",
+            "Action": "Cancel",
+            "To": "-6436494169093070404"
+          },
+          {
+            "From": "-6564173004314700696",
+            "Action": "Cancel",
+            "To": "-6564992595188633246"
+          },
+          {
+            "From": "1166637477633438387",
+            "Action": "Cancel",
+            "To": "-631370541163241637"
+          }
+        ],
+        "count": 3,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJUaW1lb3V0OyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "to": "state-WyJUaW1lb3V0OyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "label": "Ignore stale worker callback",
+        "members": [
+          {
+            "From": "1166637477633438387",
+            "Action": "IgnoreStaleWorker",
+            "To": "1166637477633438387"
+          },
+          {
+            "From": "319113899647093471",
+            "Action": "IgnoreStaleWorker",
+            "To": "319113899647093471"
+          },
+          {
+            "From": "4449629328169952184",
+            "Action": "IgnoreStaleWorker",
+            "To": "4449629328169952184"
+          }
+        ],
+        "count": 3,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJUaW1lb3V0OyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "to": "state-WyJDb21waWxpbmc7IHdvcmtlciBhbmQgdGltZXIgYWN0aXZlIixbXV0",
+        "label": "Start or replace compile",
+        "members": [
+          {
+            "From": "-2482302070630320968",
+            "Action": "Compile",
+            "To": "-8925703138585627666"
+          },
+          {
+            "From": "3999879806791112637",
+            "Action": "Compile",
+            "To": "2334612462177219848"
+          }
+        ],
+        "count": 2,
+        "hiding_rules": []
+      },
+      {
+        "from": "state-WyJUaW1lb3V0OyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "to": "state-WyJUaW1lb3V0OyB3b3JrZXIgYW5kIHRpbWVyIGNsZWFyZWQiLFtdXQ",
+        "label": "Wait or ignore mismatched message",
+        "members": [
+          {
+            "From": "-2482302070630320968",
+            "Action": "Wait",
+            "To": "-2482302070630320968"
+          },
+          {
+            "From": "-6564173004314700696",
+            "Action": "Wait",
+            "To": "-6564173004314700696"
+          },
+          {
+            "From": "1166637477633438387",
+            "Action": "Wait",
+            "To": "1166637477633438387"
+          },
+          {
+            "From": "2259587109641095181",
+            "Action": "Wait",
+            "To": "2259587109641095181"
+          },
+          {
+            "From": "319113899647093471",
+            "Action": "Wait",
+            "To": "319113899647093471"
+          },
+          {
+            "From": "3999879806791112637",
+            "Action": "Wait",
+            "To": "3999879806791112637"
+          },
+          {
+            "From": "4449629328169952184",
+            "Action": "Wait",
+            "To": "4449629328169952184"
+          },
+          {
+            "From": "8692064188213128763",
+            "Action": "Wait",
+            "To": "8692064188213128763"
+          }
+        ],
+        "count": 8,
+        "hiding_rules": []
+      }
+    ],
+    "report": {
+      "rules": [
+        {
+          "name": "Spec",
+          "kind": "spec",
+          "says": "The hook starts idle and follows the bounded compile, cancel and callback steps.",
+          "sha256": "sha256:426c7e0247a932be1ff1693f74beff373ad91cc011efaf3c90691864c987a3dd"
+        },
+        {
+          "name": "LatestOutcomeOnly",
+          "kind": "invariant",
+          "says": "Only the current compile may write an outcome to status, result or failure, while a previously committed result may remain visible.",
+          "sha256": "sha256:8827a88b043f3445efce8e8f3a7cc1198cd160e51d662727882791d97968b83c"
+        },
+        {
+          "name": "WorkerLifecycle",
+          "kind": "invariant",
+          "says": "The old worker is terminated before its replacement is created, at most one worker is ever alive, and none remains when compiling stops.",
+          "sha256": "sha256:db517e9fe63be6384472ff27182d4fb2d3dbf8f15bb30937c7d13d0506116dc2"
+        },
+        {
+          "name": "SingleEndAndTimerCleared",
+          "kind": "invariant",
+          "says": "A compile ends at most once, and every done, error or timeout outcome clears its timer.",
+          "sha256": "sha256:dd243e6a7a4aae62862a9602f30760279b386bcea1460deaf334823fd9c0e1b2"
+        },
+        {
+          "name": "CancelStaysIdle",
+          "kind": "invariant",
+          "says": "After cancel, the hook stays idle with no worker, timer or newly applied outcome until another compile starts.",
+          "sha256": "sha256:1cc90042d70f812a6db2a7521fb818c3a9183855fd68c59b1e6aa10f00c7a544"
+        },
+        {
+          "name": "TypeOK",
+          "kind": "invariant",
+          "says": "Hook state and driver observations stay within two compiles, one cancel and one timer dispatch.",
+          "sha256": "sha256:62c745a87442ddccc79924cd65ad48cf3d6a650315534b1e4a851a4a9528d646"
+        },
+        {
+          "name": "LatestCanSucceed",
+          "kind": "witness",
+          "says": "A second compile can succeed while an older compile still has a stale callback available.",
+          "sha256": "sha256:b83d28236db5b67054b307952088ef3f0edbe94abf8764f5e6aaac59fd7f3f17"
+        },
+        {
+          "name": "CanFailAfterCancel",
+          "kind": "witness",
+          "says": "A compile started after a cancel can finish with an error.",
+          "sha256": "sha256:35ab55cdee88ed105ecdd81f7aeca9b294032bc8693ab314c77f0a8a2bc9e5dc"
+        },
+        {
+          "name": "CanTimeOut",
+          "kind": "witness",
+          "says": "A compile can finish with a timeout.",
+          "sha256": "sha256:bc3c7d06f787ba64af1415e159fbe7f84bbacee82918e28a6c4cd2eed32e9884"
+        },
+        {
+          "name": "UnreplacedEventuallyEnds",
+          "kind": "property",
+          "says": "Every compile eventually ends exactly once with done, error or timeout unless another compile or cancel replaces it.",
+          "sha256": "sha256:7e2e099f21fff19b0df12548c1a2c95706e8b5b9537dc7d1a8c054b75d57c7b3"
+        },
+        {
+          "name": "DispatchProgress",
+          "kind": "fairness",
+          "says": "The driver's scheduler eventually dispatches a terminal callback that remains enabled for the current compile.",
+          "sha256": "sha256:d74618506a7be82cfd6c8ebbd6a8fd540ea3057dbda057d5207ebe0b0a3f6fdf"
+        },
+        {
+          "name": "BugAcceptStale",
+          "kind": "bug",
+          "says": "A stale callback applies its outcome without checking whether its job is still current.",
+          "expect": "LatestOutcomeOnly",
+          "sha256": "sha256:4b27b99d95e1494a735e271867cde61aedbd1165f12bbad4b4c71aa1161c38a9"
+        },
+        {
+          "name": "BugOverlapWorkers",
+          "kind": "bug",
+          "says": "Starting a replacement briefly creates a second live worker before terminating the first.",
+          "expect": "WorkerLifecycle",
+          "sha256": "sha256:737d3a7e8012df054927ac2984694ca8ce0e669131ffd151523ddb437584a0a7"
+        },
+        {
+          "name": "BugLeaveTimerArmed",
+          "kind": "bug",
+          "says": "A successful compile leaves its timeout armed.",
+          "expect": "SingleEndAndTimerCleared",
+          "sha256": "sha256:cf03de57308c407dd6b24e7312c2d3ea3fbfe74232c93a848656881b72ed6d77"
+        }
+      ],
+      "temporal": null,
+      "hidden": [],
+      "counts": {
+        "chart_arrows": 29,
+        "chart_arrows_before_hiding": 29,
+        "chart_states": 6,
+        "hidden_steps": 0,
+        "shown_steps": 178,
+        "tlc_generated_states": 179,
+        "tlc_initial_states": 1,
+        "tlc_states": 64,
+        "tlc_steps": 178
+      },
+      "count_meanings": {
+        "chart_arrows": "Visible source/reader-label/target buckets after hiding.",
+        "chart_arrows_before_hiding": "All source/reader-label/target buckets before hiding.",
+        "chart_states": "Partitions by reader label and violated invariant set, including all concrete states.",
+        "hidden_steps": "Concrete step occurrences belonging to fully hidden arrows.",
+        "shown_steps": "Concrete step occurrences belonging to visible arrows.",
+        "tlc_generated_states": "TLC generated states: initial generation (including duplicates) plus dumped step occurrences.",
+        "tlc_initial_states": "Distinct concrete initial states.",
+        "tlc_states": "Distinct reachable concrete states in the complete TLC graph.",
+        "tlc_steps": "Dumped concrete step occurrences, including duplicates and self-loops."
+      },
+      "arrow_target": 20,
+      "over_arrow_target": true,
+      "source": {
+        "module": "OpenScadCompiler",
+        "config": {
+          "Specification": "Spec",
+          "Constants": {
+            "MaxCompiles": "2",
+            "MaxTimeouts": "1"
+          },
+          "Invariants": [
+            "LatestOutcomeOnly",
+            "WorkerLifecycle",
+            "SingleEndAndTimerCleared",
+            "CancelStaysIdle",
+            "TypeOK"
+          ],
+          "Properties": null
+        },
+        "tool": {
+          "Image": "eclipse-temurin@sha256:49e21e16e3c86eb7816a44a67549910ed090fbeb40c29c525d58bf5e02e91b0f",
+          "JarSHA256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88"
+        },
+        "tlc_version": "TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)"
+      }
+    }
+  }
+}

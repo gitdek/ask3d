@@ -1,0 +1,10 @@
+{
+  "name": "OpenSCAD compile ownership",
+  "module": ".invariant/specs/OpenScadCompiler.tla",
+  "code": ".",
+  "language": "typescript",
+  "conformance": "conformance.ts",
+  "existing": [
+    "hooks/use-openscad-compiler.ts"
+  ]
+}

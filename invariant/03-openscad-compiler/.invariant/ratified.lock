@@ -1,0 +1,102 @@
+{
+  "ratified": {
+    "by": "gitdek",
+    "at": "2026-11-09T20:01:13Z",
+    "issue": 16,
+    "comment": "https://github.com/gitdek/ask3d/issues/16#issuecomment-6750048506",
+    "proposal": "sha256:aaf32df637509cbe630819dd7c39216321170d7f635681c853b4dacdef16a3c8"
+  },
+  "bounds": {
+    "MaxCompiles": "2",
+    "MaxTimeouts": "1"
+  },
+  "statements": [
+    {
+      "name": "Spec",
+      "kind": "spec",
+      "says": "The hook starts idle and follows the bounded compile, cancel and callback steps.",
+      "sha256": "sha256:426c7e0247a932be1ff1693f74beff373ad91cc011efaf3c90691864c987a3dd"
+    },
+    {
+      "name": "LatestOutcomeOnly",
+      "kind": "invariant",
+      "says": "Only the current compile may write an outcome to status, result or failure, while a previously committed result may remain visible.",
+      "sha256": "sha256:8827a88b043f3445efce8e8f3a7cc1198cd160e51d662727882791d97968b83c"
+    },
+    {
+      "name": "WorkerLifecycle",
+      "kind": "invariant",
+      "says": "The old worker is terminated before its replacement is created, at most one worker is ever alive, and none remains when compiling stops.",
+      "sha256": "sha256:db517e9fe63be6384472ff27182d4fb2d3dbf8f15bb30937c7d13d0506116dc2"
+    },
+    {
+      "name": "SingleEndAndTimerCleared",
+      "kind": "invariant",
+      "says": "A compile ends at most once, and every done, error or timeout outcome clears its timer.",
+      "sha256": "sha256:dd243e6a7a4aae62862a9602f30760279b386bcea1460deaf334823fd9c0e1b2"
+    },
+    {
+      "name": "CancelStaysIdle",
+      "kind": "invariant",
+      "says": "After cancel, the hook stays idle with no worker, timer or newly applied outcome until another compile starts.",
+      "sha256": "sha256:1cc90042d70f812a6db2a7521fb818c3a9183855fd68c59b1e6aa10f00c7a544"
+    },
+    {
+      "name": "TypeOK",
+      "kind": "invariant",
+      "says": "Hook state and driver observations stay within two compiles, one cancel and one timer dispatch.",
+      "sha256": "sha256:62c745a87442ddccc79924cd65ad48cf3d6a650315534b1e4a851a4a9528d646"
+    },
+    {
+      "name": "LatestCanSucceed",
+      "kind": "witness",
+      "says": "A second compile can succeed while an older compile still has a stale callback available.",
+      "sha256": "sha256:b83d28236db5b67054b307952088ef3f0edbe94abf8764f5e6aaac59fd7f3f17"
+    },
+    {
+      "name": "CanFailAfterCancel",
+      "kind": "witness",
+      "says": "A compile started after a cancel can finish with an error.",
+      "sha256": "sha256:35ab55cdee88ed105ecdd81f7aeca9b294032bc8693ab314c77f0a8a2bc9e5dc"
+    },
+    {
+      "name": "CanTimeOut",
+      "kind": "witness",
+      "says": "A compile can finish with a timeout.",
+      "sha256": "sha256:bc3c7d06f787ba64af1415e159fbe7f84bbacee82918e28a6c4cd2eed32e9884"
+    },
+    {
+      "name": "UnreplacedEventuallyEnds",
+      "kind": "property",
+      "says": "Every compile eventually ends exactly once with done, error or timeout unless another compile or cancel replaces it.",
+      "sha256": "sha256:7e2e099f21fff19b0df12548c1a2c95706e8b5b9537dc7d1a8c054b75d57c7b3"
+    },
+    {
+      "name": "DispatchProgress",
+      "kind": "fairness",
+      "says": "The driver's scheduler eventually dispatches a terminal callback that remains enabled for the current compile.",
+      "sha256": "sha256:d74618506a7be82cfd6c8ebbd6a8fd540ea3057dbda057d5207ebe0b0a3f6fdf"
+    },
+    {
+      "name": "BugAcceptStale",
+      "kind": "bug",
+      "says": "A stale callback applies its outcome without checking whether its job is still current.",
+      "expect": "LatestOutcomeOnly",
+      "sha256": "sha256:4b27b99d95e1494a735e271867cde61aedbd1165f12bbad4b4c71aa1161c38a9"
+    },
+    {
+      "name": "BugOverlapWorkers",
+      "kind": "bug",
+      "says": "Starting a replacement briefly creates a second live worker before terminating the first.",
+      "expect": "WorkerLifecycle",
+      "sha256": "sha256:737d3a7e8012df054927ac2984694ca8ce0e669131ffd151523ddb437584a0a7"
+    },
+    {
+      "name": "BugLeaveTimerArmed",
+      "kind": "bug",
+      "says": "A successful compile leaves its timeout armed.",
+      "expect": "SingleEndAndTimerCleared",
+      "sha256": "sha256:cf03de57308c407dd6b24e7312c2d3ea3fbfe74232c93a848656881b72ed6d77"
+    }
+  ]
+}
