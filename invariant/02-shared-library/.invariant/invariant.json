@@ -1,0 +1,10 @@
+{
+  "name": "shared library safety",
+  "module": ".invariant/specs/SharedLibrary.tla",
+  "code": ".",
+  "language": "typescript",
+  "conformance": "conformance.ts",
+  "existing": [
+    "app/api/library/route.ts"
+  ]
+}

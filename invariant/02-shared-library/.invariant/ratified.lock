@@ -1,0 +1,173 @@
+{
+  "ratified": {
+    "by": "gitdek",
+    "at": "2026-11-09T18:25:25Z",
+    "issue": 11,
+    "comment": "https://github.com/gitdek/ask3d/issues/11#issuecomment-6748015710",
+    "proposal": "sha256:34a9a176cbd908d67f4a2549a1332a2880355a0b5ce0d5db898ee3a4e63dcb53"
+  },
+  "bounds": {
+    "BackgroundItems": "58",
+    "Cap": "2",
+    "Kinds": "{image, mesh}",
+    "MaxFailures": "1",
+    "Names": "{one, two}",
+    "Payloads": "{bytesA, bytesB}"
+  },
+  "statements": [
+    {
+      "name": "Spec",
+      "kind": "spec",
+      "says": "Starting from a valid bounded library fixture, every observed step follows the library safety model.",
+      "sha256": "sha256:0f30d038870f65162b25721e48263f8cec270c88dfe0b13a81ac7121b85ba20c"
+    },
+    {
+      "name": "ListedItemsHaveBytes",
+      "kind": "invariant",
+      "says": "Every item in the published index has a complete blob, including during operations and after a file operation fails.",
+      "sha256": "sha256:93f87976856ea02b4969adb7d534dbcb9e5be1fceb417bba18ce0317aee953fd"
+    },
+    {
+      "name": "ReadFailurePreservesItems",
+      "kind": "invariant",
+      "says": "An index read failure preserves every previously listed item through the next save in the recovery scenario.",
+      "sha256": "sha256:8b0bd03200ce2868393160f3f92748c601067c8a08878f9c56519be25529c91d"
+    },
+    {
+      "name": "UniqueKindName",
+      "kind": "invariant",
+      "says": "The index contains at most one item with any given kind and name.",
+      "sha256": "sha256:66bf7e308c469e72fdde39d65678b4c24afc3cb65b93d1bc2b6e86bd5ffc369c"
+    },
+    {
+      "name": "WithinCap",
+      "kind": "invariant",
+      "says": "The index never exceeds its item cap.",
+      "sha256": "sha256:89291943de43c180585c06699462989ebd6dbabad6d28410fb2327ce4648293e"
+    },
+    {
+      "name": "SaveRetainsOtherItems",
+      "kind": "invariant",
+      "says": "Publishing a save preserves every other item except the oldest entries that must be trimmed to make room.",
+      "sha256": "sha256:bf21017cb7fb7a2988958804492c1d440f18fade576ae4ef3318335ea32b19ec"
+    },
+    {
+      "name": "SuccessfulSaveIsFirst",
+      "kind": "invariant",
+      "says": "At a successful save response, the saved item is first in the index.",
+      "sha256": "sha256:011deccc6ad3580d44c6e3d70fdfa6927cf842a5c71dc60d364b4fd6abacace9"
+    },
+    {
+      "name": "SuccessfulSaveHasGivenBytes",
+      "kind": "invariant",
+      "says": "At a successful save response, the saved item's blob contains exactly the supplied bytes.",
+      "sha256": "sha256:cd55beae43e740ba381662fdee6ad07f7cca9f81cd594128ec086090646de771"
+    },
+    {
+      "name": "SuccessfulDeleteRemovesItem",
+      "kind": "invariant",
+      "says": "At a successful delete response, the selected item is absent from the index, or the index is empty for delete-all.",
+      "sha256": "sha256:58955efe8a54cfdb29c7ea6fdbc9cdeee2edf9e1eef6f67ff36a69d8958a548e"
+    },
+    {
+      "name": "OneWriter",
+      "kind": "invariant",
+      "says": "Only the current lock owner can be executing an index mutation, and at most one request executes one at a time.",
+      "sha256": "sha256:48fe868ee651727b92984ce467a489b49046e9f507cd6e5aa9dfc4a51f69e6cd"
+    },
+    {
+      "name": "TypeOK",
+      "kind": "invariant",
+      "says": "All state has the declared bounded types, with two tracked kinds and names, two exposed capacity slots beside 58 fixed background entries, two requests and at most one failed file operation.",
+      "sha256": "sha256:bda4d1e54195a76213e8989732b94039f5ecd1502ff14552fa63962b0bde6564"
+    },
+    {
+      "name": "SaveSucceeds",
+      "kind": "witness",
+      "says": "A save can succeed.",
+      "sha256": "sha256:ed79d02ce622671dd4ad2257d4af0a9f4ce04a4152998d02d1d7d05b1aefdf8c"
+    },
+    {
+      "name": "UpsertSucceeds",
+      "kind": "witness",
+      "says": "Saving an existing kind and name can successfully replace its previous item.",
+      "sha256": "sha256:b6727bf60206ae0c8519a48bf4ad3992fda2aca52bd8e05da2ddb5862f33f21c"
+    },
+    {
+      "name": "TrimSucceeds",
+      "kind": "witness",
+      "says": "Saving into a full library can succeed while trimming the oldest item.",
+      "sha256": "sha256:2e27a5e92993f2cbf74da5d3a7ab41949dd01dc2fc7cb162c3ca1a5a3481973a"
+    },
+    {
+      "name": "DeleteOneSucceeds",
+      "kind": "witness",
+      "says": "Deleting one item can succeed while preserving another item.",
+      "sha256": "sha256:af43c481d8de82a6eb7b1d86d7867896fceb3a97b0051d2d2d025a2bf339ca37"
+    },
+    {
+      "name": "DeleteAllSucceeds",
+      "kind": "witness",
+      "says": "Deleting all items can successfully empty the index.",
+      "sha256": "sha256:219f47ce668f6b058aeb536253900065d2049be220c8fd44773d51a0002cb859"
+    },
+    {
+      "name": "ConcurrentSavesSurvive",
+      "kind": "witness",
+      "says": "Two queued saves of different keys can both succeed and remain listed.",
+      "sha256": "sha256:7a47578fc57fb5f65968bf9890b88944496ffb18d8e73ff72ce7e183244693c2"
+    },
+    {
+      "name": "ReadErrorThenSaveSucceeds",
+      "kind": "witness",
+      "says": "After one save fails to read the index, the next queued save can succeed and retain the previously listed item.",
+      "sha256": "sha256:9adc13bb2c7a27d272abea601e088cdf0a42325a44c9bd0dde6569a83e17bc35"
+    },
+    {
+      "name": "WriteErrorThenSaveSucceeds",
+      "kind": "witness",
+      "says": "After a blob write fails, the promise chain can run the next queued save successfully.",
+      "sha256": "sha256:545d9c2fbdf996cd005c114c793d4ef8b679c6bc71da120b85d0b87bd85442f2"
+    },
+    {
+      "name": "RenameFailureKeepsIndex",
+      "kind": "witness",
+      "says": "An index rename can fail while leaving the previously published index intact.",
+      "sha256": "sha256:4c9538914673b4d7685271abf9a8298d840fa28414b2842434ec65021ee4adaa"
+    },
+    {
+      "name": "RemovalFailureKeepsIndexSafe",
+      "kind": "witness",
+      "says": "Removing an obsolete blob can fail while the published index remains valid.",
+      "sha256": "sha256:95d6a56eef488ec3aaf9e0d0736173913b782a3d812d707d48849d52546bc12f"
+    },
+    {
+      "name": "RemoveBeforePublishing",
+      "kind": "bug",
+      "says": "An upsert, trim or delete removes a blob while the published index still lists it.",
+      "expect": "ListedItemsHaveBytes",
+      "sha256": "sha256:3bf8e40a6e5a3618c00391fe3b893023f6fc3ea5f05c4ca08867354fe9fd58a3"
+    },
+    {
+      "name": "DiscardIndexOnReadError",
+      "kind": "bug",
+      "says": "A save treats an index read error as an empty library and publishes a replacement index that forgets existing items.",
+      "expect": "ReadFailurePreservesItems",
+      "sha256": "sha256:6e99202c69c79a851bf7c94be9a8a09bedd1280514884aca06e44e28aaf56705"
+    },
+    {
+      "name": "PublishStaleSave",
+      "kind": "bug",
+      "says": "A concurrent save publishes a stale snapshot that drops the previous save's unrelated item.",
+      "expect": "SaveRetainsOtherItems",
+      "sha256": "sha256:736f3177e11b20db8256001ff7649b574dfcc3d2c6b372178ab5e204cf7390d7"
+    },
+    {
+      "name": "WriteWrongBytes",
+      "kind": "bug",
+      "says": "A save writes different bytes from those supplied and still reports success.",
+      "expect": "SuccessfulSaveHasGivenBytes",
+      "sha256": "sha256:db576f8a78c18679f3ae1b0edda933d610cce3f63ea4b5918316850e77fdfc15"
+    }
+  ]
+}
