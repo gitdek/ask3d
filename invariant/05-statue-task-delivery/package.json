@@ -1,6 +1,0 @@
-{
-  "description": "Statue task delivery, written by Invariant and checked against its ratified TLA+ model.",
-  "name": "statue-task-delivery",
-  "private": true,
-  "type": "module"
-}
