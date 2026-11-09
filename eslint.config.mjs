@@ -16,6 +16,9 @@ const eslintConfig = defineConfig([
     // its gitignored venvs, runtime data.
     "public/**",
     "statue-service/**",
+    // Invariant's verification projects: its gate runs and checks them with
+    // their own toolchain, as Node runs them, apart from the app's.
+    "invariant/**",
     ".library/**",
     ".logs/**",
   ]),
