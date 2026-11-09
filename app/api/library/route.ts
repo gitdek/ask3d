@@ -86,8 +86,9 @@ function withIndexLock<T>(fn: () => Promise<T>): Promise<T> {
 async function readIndex(): Promise<Meta[]> {
   try {
     return JSON.parse(await fs.readFile(INDEX, "utf8")) as Meta[];
-  } catch {
-    return [];
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return [];
+    throw error;
   }
 }
 
@@ -144,10 +145,8 @@ export async function POST(req: Request): Promise<Response> {
     const items = await readIndex();
     // Upsert by (kind, name), then trim oldest beyond the cap.
     const same = (m: Meta) => m.kind === meta.kind && m.name === meta.name;
-    for (const m of items.filter(same)) await fs.rm(blobPath(m.id), { force: true });
     let survivors = items.filter((m) => !same(m));
     survivors.sort((a, b) => b.createdAt - a.createdAt);
-    for (const m of survivors.slice(MAX_ITEMS - 1)) await fs.rm(blobPath(m.id), { force: true });
     survivors = survivors.slice(0, MAX_ITEMS - 1);
 
     const newId = [...crypto.getRandomValues(new Uint8Array(12))]
@@ -156,7 +155,10 @@ export async function POST(req: Request): Promise<Response> {
     await fs.mkdir(BLOB_DIR, { recursive: true });
     await fs.writeFile(blobPath(newId), bytes);
     const record: Meta = { ...meta, id: newId, createdAt: Date.now(), size: bytes.length };
+    // Publish before cleanup so a failure can only leave unlisted blobs.
     await writeIndex([record, ...survivors]);
+    const keptIds = new Set([newId, ...survivors.map((m) => m.id)]);
+    for (const m of items.filter((m) => !keptIds.has(m.id))) await fs.rm(blobPath(m.id), { force: true });
     return newId;
   });
   return Response.json({ id });
@@ -170,13 +172,13 @@ export async function DELETE(req: Request): Promise<Response> {
   await withIndexLock(async () => {
     const items = await readIndex();
     if (all) {
-      for (const m of items) await fs.rm(blobPath(m.id), { force: true });
       await writeIndex([]);
+      for (const m of items) await fs.rm(blobPath(m.id), { force: true });
       return;
     }
     const keep = items.filter((m) => m.id !== id);
-    if (keep.length !== items.length) await fs.rm(blobPath(id!), { force: true });
     await writeIndex(keep);
+    if (keep.length !== items.length) await fs.rm(blobPath(id!), { force: true });
   });
   return Response.json({ ok: true });
 }
