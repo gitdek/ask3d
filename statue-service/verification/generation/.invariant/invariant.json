@@ -1,0 +1,20 @@
+{
+  "name": "Statue generation",
+  "language": "python",
+  "code": ".",
+  "module": ".invariant/specs/StatueGeneration.tla",
+  "conformance": "driver.py",
+  "exhaustive": true,
+  "environment": "server.py",
+  "existing": ["server.py"],
+  "components": {
+    "scope": ["."],
+    "checks": [{
+      "target": {"source": "server.py", "symbol": "run_generation"},
+      "conformance": [{"source": "verification/generation/driver.py", "symbol": "drive"}],
+      "invocations": [
+        {"id": "explore", "kind": "conformance", "check": {"source": "verification/generation/driver.py", "symbol": "drive"}, "command": "python", "args": ["driver.py"], "working_dir": "verification/generation", "env": {"STATUE_MOCK": "1"}, "sampling": {"runs": "200", "steps": "10", "seed": "1"}, "inputs": ["verification/generation/.invariant/specs/StatueGeneration.tla", "verification/generation/.invariant/ratified.lock"]}
+      ]
+    }]
+  }
+}
