@@ -1,0 +1,121 @@
+{
+  "ratified": {
+    "by": "gitdek",
+    "at": "2026-11-09T18:25:24Z",
+    "issue": 13,
+    "comment": "https://github.com/gitdek/ask3d/issues/13#issuecomment-6748015360",
+    "proposal": "sha256:0ab53e00a6b5386777ccfb57e1e6dbcce88ba6a01646aa4f1f729ec46762ee13"
+  },
+  "plan": {
+    "name": "Keep local library migrations retryable",
+    "summary": "Change only migrateLocalLibrary in lib/history.ts so it marks migration complete and requests deletion of an existing local database only after every local item has been uploaded or found in the shared library under the same kind and name. Opening errors, failed metadata or byte reads (including missing bytes), shared-library listing errors and upload failures must leave the flag unset and the local database intact for another load, with opened connections closed on exit. Preserve the upgrade-needed path that aborts creation and marks a browser with no old library migrated without uploads or deletion, and preserve the no-op behavior for unreadable localStorage or an existing migration flag. Keep oldest-first uploads, existing metadata and byte payloads, and recognition of successful partial uploads on retry; add Vitest acceptance coverage for failures, recovery and these preserved behaviors without changing other history helpers, callers, server behavior or documentation.",
+    "files": [
+      "lib/history.ts"
+    ],
+    "tests": [
+      {
+        "name": "Opening failures are retried while absent libraries and unavailable storage retain their behavior",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "An IndexedDB open error cannot mark an existing library migrated; the next call uploads its item and completes, while unreadable localStorage, a never-created database and an already-set flag retain their existing behavior.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration distinguishes an open error from an absent library and retries"
+      },
+      {
+        "name": "Metadata request errors retain the local library",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "A failed metadata request leaves all local items and the flag untouched, closes the database connection and allows a successful retry.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration retries metadata read failures (request)"
+      },
+      {
+        "name": "Metadata transaction exceptions retain the local library",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "An exception opening the metadata transaction is a retryable failure, never an empty successful migration.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration retries metadata read failures (transaction)"
+      },
+      {
+        "name": "Metadata store exceptions retain the local library",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "An exception accessing the metadata store preserves the migration source and permits recovery.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration retries metadata read failures (store)"
+      },
+      {
+        "name": "Metadata read exceptions retain the local library",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "A synchronous exception from the metadata read preserves the migration source and permits recovery.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration retries metadata read failures (read)"
+      },
+      {
+        "name": "Missing item bytes prevent completion",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "An absent blob prevents marking or deleting the local library; after its bytes become readable the retry uploads it and recognizes already-shared items by both kind and name.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration retries byte read failures without repeating successful uploads (missing)"
+      },
+      {
+        "name": "Blob request errors prevent completion",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "A failed blob request leaves the entire source library retryable and the retry preserves previously uploaded items.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration retries byte read failures without repeating successful uploads (request)"
+      },
+      {
+        "name": "Blob transaction exceptions prevent completion",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "A blob transaction exception cannot silently skip an item or complete migration.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration retries byte read failures without repeating successful uploads (transaction)"
+      },
+      {
+        "name": "Blob store exceptions prevent completion",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "A blob store exception keeps the flag unset and all local items intact until a later successful migration.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration retries byte read failures without repeating successful uploads (store)"
+      },
+      {
+        "name": "Blob read exceptions prevent completion",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "A synchronous blob read exception keeps the flag unset and all local items intact until a later successful migration.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration retries byte read failures without repeating successful uploads (read)"
+      },
+      {
+        "name": "HTTP upload failures remain retryable",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "An unsuccessful upload response prevents completion; a subsequent shared-list failure also preserves local state, and recovery uploads only the missing item with its metadata and bytes intact.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration retries partial uploads and a failed shared listing (http)"
+      },
+      {
+        "name": "Rejected upload requests remain retryable",
+        "file": "lib/__tests__/history-migration.accept.test.ts",
+        "says": "A rejected upload request prevents completion; subsequent retries preserve earlier uploads and finish only when every local item is shared.",
+        "part": "web",
+        "framework": "vitest",
+        "selector": "local library migration retries partial uploads and a failed shared listing (network)"
+      }
+    ],
+    "sources": {
+      "lib/__tests__/history-migration.accept.test.ts": "import { afterEach, beforeEach, describe, expect, it, vi } from \"vitest\";\nimport { migrateLocalLibrary, type HistoryMeta } from \"../history\";\n\nconst FLAG = \"ask3d:library-migrated-v1\";\nconst DB = \"ask3d-history\";\ntype ReadFault = \"request\" | \"transaction\" | \"store\" | \"read\";\ntype UploadFault = \"http\" | \"network\";\ntype Metadata = Omit\u003cHistoryMeta, \"id\" | \"createdAt\" | \"size\"\u003e;\n\n// These browser fakes expose asynchronous request events and transaction\n// completion. Only external storage and HTTP are replaced, never history.ts.\nclass Events extends EventTarget {\n  onsuccess: ((event: Event) =\u003e void) | null = null;\n  onerror: ((event: Event) =\u003e void) | null = null;\n  onupgradeneeded: ((event: Event) =\u003e void) | null = null;\n  oncomplete: ((event: Event) =\u003e void) | null = null;\n  onabort: ((event: Event) =\u003e void) | null = null;\n\n  emit(name: \"success\" | \"error\" | \"upgradeneeded\" | \"complete\" | \"abort\") {\n    const event = new Event(name);\n    this.dispatchEvent(event);\n    this[`on${name}`]?.call(this, event);\n  }\n}\n\nclass RequestEvents\u003cT\u003e extends Events {\n  result: T | undefined;\n  error: DOMException | null = null;\n  transaction: { abort: () =\u003e void } | null = null;\n}\n\nfunction item(id: string, createdAt = 1, extra: Partial\u003cHistoryMeta\u003e = {}): HistoryMeta {\n  return {\n    id, createdAt, kind: \"mesh\", name: `${id}.stl`, mime: \"model/stl\", size: 3,\n    ...extra,\n  };\n}\n\nfunction key(meta: Pick\u003cHistoryMeta, \"kind\" | \"name\"\u003e): string {\n  return `${meta.kind}|${meta.name}`;\n}\n\nfunction fixture(local: HistoryMeta[], shared: HistoryMeta[] = []) {\n  const original = local.map((m) =\u003e ({ ...m }));\n  const localItems = local.map((m) =\u003e ({ ...m }));\n  const blobs = new Map\u003cstring, ArrayBuffer | undefined\u003e(\n    local.map((m) =\u003e [m.id, new Uint8Array([3, 1, 4]).buffer]),\n  );\n  const remote = new Map(shared.map((m) =\u003e [key(m), { ...m }]));\n  const values = new Map\u003cstring, string\u003e();\n  const posts: { meta: Metadata; bytes: number[] }[] = [];\n  const reads: string[] = [];\n  const connections: { close: ReturnType\u003ctypeof vi.fn\u003e }[] = [];\n  const state = {\n    exists: true,\n    openError: false,\n    storageError: false,\n    metaFault: undefined as ReadFault | undefined,\n    blobFault: undefined as ReadFault | \"missing\" | undefined,\n    blobID: \"\",\n    uploadFault: undefined as UploadFault | undefined,\n    uploadName: \"\",\n    listError: false,\n  };\n  const storage = {\n    getItem: vi.fn((name: string) =\u003e {\n      if (state.storageError) throw new Error(\"localStorage is unavailable\");\n      return values.get(name) ?? null;\n    }),\n    setItem: vi.fn((name: string, value: string) =\u003e { values.set(name, value); }),\n    removeItem: vi.fn((name: string) =\u003e { values.delete(name); }),\n  };\n  const abortCreation = vi.fn();\n  const open = vi.fn((name: string, version?: number) =\u003e {\n    if (name !== DB || (version !== undefined \u0026\u0026 version !== 1)) {\n      throw new Error(\"unexpected legacy database\");\n    }\n    const request = new RequestEvents\u003cunknown\u003e();\n    const connection = {\n      close: vi.fn(),\n      transaction: (store: string, mode: string = \"readonly\") =\u003e {\n        if (![\"meta\", \"blobs\"].includes(store) || mode !== \"readonly\") {\n          throw new Error(\"migration must only read the legacy stores\");\n        }\n        const fault = store === \"meta\" ? state.metaFault : state.blobFault;\n        if (fault === \"transaction\") throw new Error(\"transaction unavailable\");\n        const tx = Object.assign(new Events(), {\n          error: null as DOMException | null,\n          objectStore: (storeName: string) =\u003e {\n            if (storeName !== store) throw new Error(\"unexpected object store\");\n            if (fault === \"store\") throw new Error(\"object store unavailable\");\n            function read(id?: string) {\n              if (id !== undefined) reads.push(id);\n              const applies = store === \"meta\" || id === state.blobID;\n              if (applies \u0026\u0026 fault === \"read\") throw new Error(\"read unavailable\");\n              const req = new RequestEvents\u003cunknown\u003e();\n              queueMicrotask(() =\u003e {\n                if (applies \u0026\u0026 fault === \"request\") {\n                  req.error = new DOMException(\"read failed\", \"UnknownError\");\n                  req.emit(\"error\");\n                  tx.error = req.error;\n                  tx.emit(\"error\");\n                  queueMicrotask(() =\u003e tx.emit(\"abort\"));\n                  return;\n                }\n                req.result = store === \"meta\"\n                  ? localItems.map((m) =\u003e ({ ...m }))\n                  : applies \u0026\u0026 fault === \"missing\" ? undefined : blobs.get(id!);\n                req.emit(\"success\");\n                queueMicrotask(() =\u003e tx.emit(\"complete\"));\n              });\n              return req;\n            }\n            return { getAll: () =\u003e read(), get: (id: string) =\u003e read(id) };\n          },\n        });\n        return tx;\n      },\n    };\n    request.transaction = {\n      abort: () =\u003e {\n        abortCreation();\n        queueMicrotask(() =\u003e {\n          request.error = new DOMException(\"creation aborted\", \"AbortError\");\n          request.emit(\"error\");\n        });\n      },\n    };\n    queueMicrotask(() =\u003e {\n      if (state.openError) {\n        request.error = new DOMException(\"open failed\", \"UnknownError\");\n        request.emit(\"error\");\n      } else if (!state.exists) {\n        request.result = connection;\n        request.emit(\"upgradeneeded\");\n      } else {\n        connections.push(connection);\n        request.result = connection;\n        request.emit(\"success\");\n      }\n    });\n    return request;\n  });\n  const deleteDatabase = vi.fn((name: string) =\u003e {\n    if (name !== DB) throw new Error(\"unexpected deletion target\");\n    localItems.splice(0);\n    blobs.clear();\n    const request = new RequestEvents\u003cundefined\u003e();\n    queueMicrotask(() =\u003e request.emit(\"success\"));\n    return request;\n  });\n  const http = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =\u003e {\n    if (String(input) !== \"/api/library\") throw new Error(\"unexpected HTTP endpoint\");\n    if (!init?.method || init.method === \"GET\") {\n      if (state.listError) return Response.json({ error: \"unavailable\" }, { status: 503 });\n      return Response.json({ items: [...remote.values()] });\n    }\n    if (init.method !== \"POST\" || !(init.body instanceof FormData)) {\n      throw new Error(\"expected a multipart upload\");\n    }\n    const meta = JSON.parse(String(init.body.get(\"meta\"))) as Metadata;\n    const blob = init.body.get(\"bytes\");\n    if (!(blob instanceof Blob)) throw new Error(\"upload is missing bytes\");\n    const bytes = [...new Uint8Array(await blob.arrayBuffer())];\n    posts.push({ meta, bytes });\n    if (meta.name === state.uploadName \u0026\u0026 state.uploadFault) {\n      if (state.uploadFault === \"network\") throw new TypeError(\"network unavailable\");\n      return Response.json({ error: \"unavailable\" }, { status: 503 });\n    }\n    remote.set(key(meta), { ...meta, id: `server-${posts.length}`, createdAt: 100, size: bytes.length });\n    return Response.json({ id: `server-${posts.length}` });\n  });\n  vi.stubGlobal(\"localStorage\", storage);\n  vi.stubGlobal(\"indexedDB\", { open, deleteDatabase });\n  vi.stubGlobal(\"fetch\", http);\n  return {\n    state, original, localItems, blobs, remote, values, storage, posts, reads,\n    connections, open, deleteDatabase, abortCreation, http,\n  };\n}\n\ntype Fixture = ReturnType\u003ctypeof fixture\u003e;\n\nfunction expectRetained(f: Fixture) {\n  expect(f.values.has(FLAG), \"failed migration must remain retryable\").toBe(false);\n  expect(f.storage.setItem).not.toHaveBeenCalled();\n  expect(f.deleteDatabase).not.toHaveBeenCalled();\n  expect(f.localItems).toEqual(f.original);\n  expect(f.blobs.size).toBe(f.original.length);\n  for (const connection of f.connections) expect(connection.close).toHaveBeenCalled();\n}\n\nfunction expectComplete(f: Fixture) {\n  expect(f.values.get(FLAG)).toBe(\"1\");\n  expect(f.deleteDatabase).toHaveBeenCalledTimes(1);\n  expect(f.deleteDatabase).toHaveBeenCalledWith(DB);\n  expect(f.localItems).toEqual([]);\n  for (const meta of f.original) expect(f.remote.has(key(meta))).toBe(true);\n  for (const connection of f.connections) expect(connection.close).toHaveBeenCalled();\n}\n\nbeforeEach(() =\u003e {\n  vi.spyOn(console, \"warn\").mockImplementation(() =\u003e {});\n  vi.spyOn(console, \"info\").mockImplementation(() =\u003e {});\n});\n\nafterEach(() =\u003e {\n  vi.unstubAllGlobals();\n  vi.restoreAllMocks();\n});\n\ndescribe(\"local library migration\", () =\u003e {\n  it(\"distinguishes an open error from an absent library and retries\", async () =\u003e {\n    const unreadable = fixture([item(\"private\")]);\n    unreadable.state.storageError = true;\n    await migrateLocalLibrary();\n    expectRetained(unreadable);\n    expect(unreadable.open).not.toHaveBeenCalled();\n    expect(unreadable.http).not.toHaveBeenCalled();\n\n    const absent = fixture([]);\n    absent.state.exists = false;\n    await migrateLocalLibrary();\n    expect(absent.abortCreation).toHaveBeenCalledTimes(1);\n    expect(absent.values.get(FLAG)).toBe(\"1\");\n    expect(absent.http).not.toHaveBeenCalled();\n    expect(absent.deleteDatabase).not.toHaveBeenCalled();\n\n    const f = fixture([item(\"saved\")]);\n    f.state.openError = true;\n    await migrateLocalLibrary();\n    expectRetained(f);\n    expect(f.http).not.toHaveBeenCalled();\n    f.state.openError = false;\n    await migrateLocalLibrary();\n    expect(f.open).toHaveBeenCalledTimes(2);\n    expect(f.posts.map((p) =\u003e p.meta.name)).toEqual([\"saved.stl\"]);\n    expectComplete(f);\n    const requests = f.http.mock.calls.length;\n    await migrateLocalLibrary();\n    expect(f.open).toHaveBeenCalledTimes(2);\n    expect(f.http).toHaveBeenCalledTimes(requests);\n    expect(f.deleteDatabase).toHaveBeenCalledTimes(1);\n  });\n\n  it.each([\"request\", \"transaction\", \"store\", \"read\"] as const)(\n    \"retries metadata read failures (%s)\", async (fault) =\u003e {\n      const f = fixture([item(\"saved\")]);\n      f.state.metaFault = fault;\n      await migrateLocalLibrary();\n      expectRetained(f);\n      expect(f.posts).toEqual([]);\n      f.state.metaFault = undefined;\n      await migrateLocalLibrary();\n      expect(f.open).toHaveBeenCalledTimes(2);\n      expect(f.posts.map((p) =\u003e p.meta.name)).toEqual([\"saved.stl\"]);\n      expectComplete(f);\n\n      // An actually empty legacy database is a successful migration.\n      const empty = fixture([]);\n      await migrateLocalLibrary();\n      expect(empty.posts).toEqual([]);\n      expectComplete(empty);\n    },\n  );\n\n  it.each([\"missing\", \"request\", \"transaction\", \"store\", \"read\"] as const)(\n    \"retries byte read failures without repeating successful uploads (%s)\", async (fault) =\u003e {\n      const first = item(\"first\", 1);\n      const second = item(\"second\", 2, {\n        kind: \"compiled\", prompt: \"make a hook\", scad: \"cube(3);\",\n        dims: { x: 3, y: 3, z: 3 }, note: \"saved design\",\n      });\n      const existing = item(\"existing\", 3);\n      const f = fixture([existing, second, first], [\n        { ...existing, id: \"remote-copy\" },\n        item(\"other-kind\", 4, { kind: \"image\", name: second.name }),\n      ]);\n      // This matching shared item needs no readable local blob.\n      f.blobs.set(existing.id, undefined);\n      f.state.blobID = second.id;\n      f.state.blobFault = fault;\n      // Transaction/store failures precede get(id), so they apply to every\n      // blob transaction; the other faults target only the second item.\n      await migrateLocalLibrary();\n      expectRetained(f);\n      const successfulBefore = f.posts.map((p) =\u003e p.meta.name);\n      f.state.blobFault = undefined;\n      await migrateLocalLibrary();\n      expectComplete(f);\n      expect(f.open).toHaveBeenCalledTimes(2);\n      expect(f.posts.map((p) =\u003e p.meta.name)).toEqual([first.name, second.name]);\n      for (const name of successfulBefore) {\n        expect(f.posts.filter((p) =\u003e p.meta.name === name)).toHaveLength(1);\n      }\n      expect(f.reads).not.toContain(existing.id);\n      expect(f.remote.has(key({ kind: \"image\", name: second.name }))).toBe(true);\n      expect(f.posts[1]).toEqual({\n        meta: {\n          kind: second.kind, name: second.name, mime: second.mime,\n          prompt: second.prompt, scad: second.scad, dims: second.dims, note: second.note,\n        },\n        bytes: [3, 1, 4],\n      });\n    },\n  );\n\n  it.each([\"http\", \"network\"] as const)(\n    \"retries partial uploads and a failed shared listing (%s)\", async (fault) =\u003e {\n      const first = item(\"first\", 1);\n      const second = item(\"second\", 2, { kind: \"image\", thumb: \"data:image/jpeg;base64,AQID\" });\n      const f = fixture([second, first]);\n      f.state.uploadName = second.name;\n      f.state.uploadFault = fault;\n      await migrateLocalLibrary();\n      expectRetained(f);\n      expect(f.posts.map((p) =\u003e p.meta.name)).toEqual([first.name, second.name]);\n      expect(f.remote.has(key(first))).toBe(true);\n      expect(f.remote.has(key(second))).toBe(false);\n\n      f.state.uploadFault = undefined;\n      f.state.listError = true;\n      await migrateLocalLibrary();\n      expectRetained(f);\n      expect(f.posts).toHaveLength(2);\n\n      f.state.listError = false;\n      await migrateLocalLibrary();\n      expectComplete(f);\n      expect(f.open).toHaveBeenCalledTimes(3);\n      expect(f.posts.map((p) =\u003e p.meta.name)).toEqual([first.name, second.name, second.name]);\n      expect(f.posts[2]).toEqual({\n        meta: { kind: second.kind, name: second.name, mime: second.mime, thumb: second.thumb },\n        bytes: [3, 1, 4],\n      });\n    },\n  );\n});\n"
+    },
+    "execution": {
+      "base": "0e0fdde0d3057f8e535359024f31b10252036f19",
+      "digest": "sha256:13f42c200020001fb8f3d2ef6dd4f3fa6beb0b1af351c4d0618a4cf0c81fe807"
+    }
+  }
+}
