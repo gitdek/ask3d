@@ -1,0 +1,10 @@
+{
+  "name": "statue task delivery",
+  "module": ".invariant/specs/StatueTask.tla",
+  "code": ".",
+  "language": "typescript",
+  "conformance": "conformance.ts",
+  "existing": [
+    "hooks/use-statue-task.ts"
+  ]
+}
