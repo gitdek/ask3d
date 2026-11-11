@@ -88,11 +88,18 @@ Requires Node >= 22. Prefer configuring by hand? Copy `.env.local.example` to
 Statue filenames use `<photo-basename>-statue-<task-id>.stl` for fresh tasks,
 stripping only the photo's final extension, and `recovered-statue-<task-id>.stl`
 after a reload. Both include the full 12-character task ID. Rejected deliveries
-keep their name when retried on the same page. The hook remembers a task in
-localStorage only after its delivery callback resolves, or when explicitly
-cleared, so completed deliveries are skipped on reload. Pending or rejected
-deliveries remain recoverable unless cleared. If localStorage is unavailable,
-recovery stays best-effort and may deliver a completed task again.
+keep their name when retried on the same page. The hook excludes every
+successfully delivered or explicitly cleared task for the lifetime of the page,
+starting with the dismissal stored when it mounts. These exclusions survive
+rerenders and recovery effect reruns, so delayed answers cannot revive them,
+even when localStorage is unavailable. Pending or rejected deliveries remain
+recoverable unless cleared. Clear still lets in-flight delivery finish.
+
+Across reloads, persistence remains best-effort: localStorage's unchanged
+`ask3d:dismissed-statue-task` entry stores just one ID, written only after its
+delivery callback resolves or when explicitly cleared. Only the most recently
+stored ID survives a reload; older exclusions, or tasks whose IDs could not be
+stored or read, may recover again.
 
 Three decisions worth the detour:
 

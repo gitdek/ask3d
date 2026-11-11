@@ -52,6 +52,12 @@ export function useStatueTask({ onDeliver, onError }: {
   const statueRunningRef = useRef(false);
   // Keep the last adopted task for Clear and its basename for same-page retries.
   const lastStatueTaskRef = useRef<{ id: string; baseName: string } | null>(null);
+  // Remember every exclusion on this page before any recovery answer can arrive.
+  const excludedStatueTaskIdsRef = useRef<Set<string> | null>(null);
+  if (excludedStatueTaskIdsRef.current === null) {
+    const dismissedTaskId = getDismissedStatueTaskId();
+    excludedStatueTaskIdsRef.current = new Set(dismissedTaskId ? [dismissedTaskId] : []);
+  }
 
   // Fresh generations and post-reload recovery share polling and delivery.
   const adoptStatueTask = useCallback(
@@ -112,6 +118,7 @@ export function useStatueTask({ onDeliver, onError }: {
         note: genNote,
         repairWarning,
       });
+      excludedStatueTaskIdsRef.current?.add(taskId);
       setDismissedStatueTaskId(taskId);
     },
     [onDeliver],
@@ -167,8 +174,8 @@ export function useStatueTask({ onDeliver, onError }: {
     (async () => {
       const latest = await fetchLatestStatueTask();
       if (cancelled || !latest || statueRunningRef.current) return;
-      // Completed deliveries and explicitly cleared tasks stay gone across reloads.
-      if (latest.id === getDismissedStatueTaskId()) return;
+      // A delayed answer must see all exclusions, even after storage was replaced.
+      if (excludedStatueTaskIdsRef.current?.has(latest.id) || latest.id === getDismissedStatueTaskId()) return;
       const active = latest.status === "queued" || latest.status === "running";
       const fresh = latest.status === "succeeded" && latest.age_seconds < 600;
       if (!active && !fresh) return;
@@ -196,9 +203,10 @@ export function useStatueTask({ onDeliver, onError }: {
     };
   }, [adoptStatueTask, onError]);
 
-  // Clear only affects future reload-adoption; in-flight work still delivers.
+  // Clear only affects future recovery; in-flight work still delivers.
   const dismiss = useCallback(() => {
     if (lastStatueTaskRef.current) {
+      excludedStatueTaskIdsRef.current?.add(lastStatueTaskRef.current.id);
       setDismissedStatueTaskId(lastStatueTaskRef.current.id);
     }
   }, []);
