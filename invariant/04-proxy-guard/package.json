@@ -1,6 +1,0 @@
-{
-  "description": "Proxy request guard, written by Invariant and checked against its ratified TLA+ model.",
-  "name": "proxy-guard",
-  "private": true,
-  "type": "module"
-}
