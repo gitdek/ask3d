@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: gitdek/invariant
-          ref: 236e2cb6a288863a1f7106a95f1d02a558fc7cde
+          ref: 2e37a15170c48b02f0db6a6a820aa93054721525
           path: .invariant-gate
           persist-credentials: false
 
