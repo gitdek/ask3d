@@ -66,6 +66,10 @@ def tool_python() -> Path:
     """
     return SIDECAR_PYTHON if SIDECAR_PYTHON.exists() else TRELLIS_PYTHON
 MOCK = os.environ.get("STATUE_MOCK") == "1"
+# How long a mock generation takes, in seconds. The default looks like a
+# short real one in the app. The statue model's check sets it to 0, since it
+# runs well over a hundred of them.
+MOCK_SECONDS = max(0.0, float(os.environ.get("STATUE_MOCK_SECONDS", "3")))
 PORT = int(os.environ.get("STATUE_PORT", "8765"))
 WORK_DIR = Path(tempfile.gettempdir()) / "ask3d-statue"
 WORK_DIR.mkdir(parents=True, exist_ok=True)
@@ -195,7 +199,7 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
 
 def _generate(task: dict, image_path: Path, out_base: Path) -> None:
     if MOCK:
-        time.sleep(3)
+        time.sleep(MOCK_SECONDS)
         glb_path = out_base.with_suffix(".glb")
         glb_path.write_bytes(make_mock_glb())
         task["model_path"] = str(glb_path)

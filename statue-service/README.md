@@ -87,7 +87,8 @@ generator detects the flat-card failure, and the sidecar re-rolls up to twice.
 | `STATUE_MV` | `1` | `0` disables multi-photo conditioning |
 | `STATUE_MAX_FACES` | `200000` | Decimation target after repair |
 | `STATUE_TASK_TIMEOUT` | `3600` | Seconds before a wedged generator is killed |
-| `STATUE_MOCK` | — | `1` serves an instant fake mesh, for testing the pipeline |
+| `STATUE_MOCK` | — | `1` serves a fake mesh, for testing the pipeline |
+| `STATUE_MOCK_SECONDS` | `3` | how long a mock generation takes; the statue model's check sets it to `0` |
 
 ## Cloud engines
 
