@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "state": [
+    {"id": "repairing", "when": {"eq": [{"var": "phase"}, "\"repairing\""]}, "label": "Waiting for repair"},
+    {"id": "compiling", "when": {"eq": [{"var": "phase"}, "\"compiling\""]}, "label": "Compiling"},
+    {"id": "accepted", "when": {"eq": [{"var": "phase"}, "\"accepted\""]}, "label": "Model accepted"},
+    {"id": "error", "when": {"eq": [{"var": "phase"}, "\"error\""]}, "label": "Error shown"},
+    {"id": "idle", "when": true, "label": "Waiting for reply"}
+  ],
+  "step": [
+    {"id": "human", "when": {"eq": [{"action": true}, "HumanMessage"]}, "label": "New human message"},
+    {"id": "reply", "when": {"eq": [{"action": true}, "FinishedReply"]}, "label": "Program reply"},
+    {"id": "no-code", "when": {"eq": [{"action": true}, "NoCodeReply"]}, "label": "Reply without code"},
+    {"id": "compiler", "when": {"eq": [{"action": true}, "CompilerSignal"]}, "label": "Compiler result or failure"},
+    {"id": "replacement", "when": {"eq": [{"action": true}, "ModelReplaced"]}, "label": "Statue, restore or Clear"},
+    {"id": "external", "when": {"eq": [{"action": true}, "ExpectSource"]}, "label": "Caller starts compile"},
+    {"id": "retry", "when": {"eq": [{"action": true}, "RetryTimeout"]}, "label": "Retry timed-out program"},
+    {"id": "other", "when": true, "label": "Wait or repeat input"}
+  ]
+}

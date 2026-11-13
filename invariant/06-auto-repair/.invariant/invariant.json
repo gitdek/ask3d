@@ -1,0 +1,10 @@
+{
+  "name": "automatic repair checks",
+  "module": ".invariant/specs/AutoRepair.tla",
+  "code": ".",
+  "language": "typescript",
+  "conformance": "conformance.ts",
+  "existing": [
+    "hooks/use-auto-repair.ts"
+  ]
+}
