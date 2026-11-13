@@ -3,17 +3,15 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAutoRepair } from "@/hooks/use-auto-repair";
 import { useOpenscadCompiler } from "@/hooks/use-openscad-compiler";
 import { useStatueTask, type StatueDelivery } from "@/hooks/use-statue-task";
 import { downloadModel, slugify } from "@/lib/stl";
 import { stlTo3mf, stlTo3mfMulti, type ColorPart } from "@/lib/threemf";
-import { extractLastScadBlock } from "@/lib/scad/extract";
-import { analyzeStlComponents } from "@/lib/scad/components";
 import { colorPartSource, colorToHex, parseColorPlan } from "@/lib/scad/colors";
 import { compileOnce } from "@/lib/scad/compile-once";
 import { lintScad } from "@/lib/scad/lint";
 import { parseScadWarnings } from "@/lib/scad/errors";
-import { buildRepairMessage } from "@/lib/ai/system-prompt";
 import type { CompileFile, ScadError } from "@/lib/scad/types";
 import { describeUpload, meshAsset, processUpload, uploadPath, type UploadedAsset } from "@/lib/uploads";
 import { modelToPrintableStl, type StatueEngine } from "@/lib/statue";
@@ -36,7 +34,6 @@ import HistoryPanel from "./history-panel";
 import ViewerPanel, { type ViewerError } from "./viewer-panel";
 import type { PillState } from "./status-pill";
 
-const MAX_REPAIR_ATTEMPTS = 2;
 const STATUE_TARGET_MAX_DIM_MM = 80;
 
 export type { StatueProgress } from "@/hooks/use-statue-task";
@@ -232,12 +229,6 @@ export default function AppShell({
     // is the one place a stale explanation has to be dropped.
     setColorIssue(null);
   }, []);
-  // Each compile result/failure is handled exactly once: the effects below
-  // re-fire on dependency identity churn, and a second pass would send a
-  // second repair message, re-save the library entry, or wipe finished
-  // color parts.
-  const handledResultRef = useRef<typeof result>(null);
-  const handledFailureRef = useRef<typeof failure>(null);
   // Bumped whenever the viewer's model is replaced (compile, statue,
   // library restore, Clear) so background work started for an earlier
   // model — the per-color renders — can tell it has gone stale.
@@ -248,31 +239,6 @@ export default function AppShell({
   // Paths added since the last send — their descriptions (and image parts)
   // ride along on the next message, once.
   const unannouncedRef = useRef<Set<string>>(new Set());
-  const [repairAttempt, setRepairAttempt] = useState(0);
-  const repairAttemptsRef = useRef(0);
-  const lastCompiledSourceRef = useRef<string | null>(null);
-  const lastSuccessfulSourceRef = useRef<string | null>(null);
-  // Errors that triggered the in-flight repair round — consumed when the
-  // repair reply re-emits identical code or contains no code at all.
-  const pendingRepairRef = useRef<{ errors: ScadError[]; stderr: string[] } | null>(null);
-  const prevChatStatusRef = useRef(status);
-
-  // A statue, library restore, or Clear replaces whatever the viewer shows.
-  // Forgetting the last successful source matters: a later reply that
-  // re-emits that same program must compile again, not be skipped as
-  // "already showing".
-  const replaceViewerModel = useCallback(
-    (bytes: ArrayBuffer | null) => {
-      viewerGenRef.current += 1;
-      lastSuccessfulSourceRef.current = null;
-      applyColorParts(null);
-      setColorPending(false);
-      setWarnings([]);
-      setViewerError(null);
-      setStl(bytes);
-    },
-    [applyColorParts],
-  );
 
   /**
    * Re-render each color group of a color-structured program in the
@@ -332,187 +298,94 @@ export default function AppShell({
     [applyColorParts],
   );
 
-  const beginRepairOrFail = useCallback(
-    (source: string, errors: ScadError[], stderr: string[]) => {
-      if (source !== lastCompiledSourceRef.current) return;
-      if (repairAttemptsRef.current < MAX_REPAIR_ATTEMPTS) {
-        repairAttemptsRef.current += 1;
-        setRepairAttempt(repairAttemptsRef.current);
-        pendingRepairRef.current = { errors, stderr };
-        const lines = errors.map((e) =>
-          e.line !== undefined ? `Line ${e.line}: ${e.message}` : e.message,
-        );
-        sendMessage({ text: buildRepairMessage(lines, stderr) });
-      } else {
-        pendingRepairRef.current = null;
-        setViewerError({
-          title: `Compile failed after ${MAX_REPAIR_ATTEMPTS} automatic fix attempts`,
-          hint: "Describe what to change in the chat and I'll try a different approach.",
-          errors,
-          stderr,
-        });
-      }
+  // The repair loop (hooks/use-auto-repair.ts) decides what a finished reply,
+  // a compile result and a compile failure lead to. It reaches the chat, the
+  // compiler, the linter and the viewer through these.
+  const compileProgram = useCallback(
+    (source: string, options?: { timeoutMs?: number }) =>
+      compile(source, compileFilesOf(uploadsRef.current), options),
+    [compile],
+  );
+  const lintProgram = useCallback(
+    (source: string) => lintScad(source, allowedPathsOf(uploadsRef.current)),
+    [],
+  );
+  const sendRepair = useCallback(
+    (text: string) => {
+      sendMessage({ text });
     },
     [sendMessage],
   );
-
-  // Chat stream finished → extract fence → lint → compile.
-  useEffect(() => {
-    const finished = prevChatStatusRef.current !== "ready" && status === "ready";
-    prevChatStatusRef.current = status;
-    if (!finished) return;
-    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-    if (!lastAssistant) return;
-    let code = extractLastScadBlock(uiMessageText(lastAssistant));
-    if (!code) {
-      // Mid-repair, a reply without code (prose apology, truncated fence) is
-      // itself a failure — surface the stored errors instead of going silent.
-      if (repairAttemptsRef.current > 0 && pendingRepairRef.current) {
-        setViewerError({
-          title: "The automatic fix attempt didn't produce code",
-          hint: "Describe what to change in the chat and I'll try a different approach.",
-          errors: pendingRepairRef.current.errors,
-          stderr: pendingRepairRef.current.stderr,
-        });
-        repairAttemptsRef.current = 0;
-        setRepairAttempt(0);
-        pendingRepairRef.current = null;
-      }
-      return;
-    }
-    if (process.env.NEXT_PUBLIC_DEBUG_BREAK === "1") code += "\nthis_is_a_debug_syntax_error(";
-    // Unchanged code that already compiled successfully: nothing to do.
-    if (code === lastSuccessfulSourceRef.current) return;
-    // The model re-emitted the failing program verbatim: count it as another
-    // failed round (or exhaust) rather than silently stalling the loop.
-    if (code === lastCompiledSourceRef.current && pendingRepairRef.current) {
-      const pending = pendingRepairRef.current;
-      beginRepairOrFail(code, pending.errors, pending.stderr);
-      return;
-    }
-    lastCompiledSourceRef.current = code;
-    setViewerError(null);
-    pendingRepairRef.current = null;
-    const lintErrors = lintScad(code, allowedPathsOf(uploadsRef.current));
-    if (lintErrors.length > 0) beginRepairOrFail(code, lintErrors, []);
-    else compile(code, compileFilesOf(uploadsRef.current));
-  }, [status, messages, beginRepairOrFail, compile]);
-
-  // Compile success → show model, reset the repair counter. But first, a
-  // geometry sanity check: a difference() that slices clean through a part
-  // compiles fine yet leaves severed fragments floating in the air (they
-  // print as loose debris). Detect that and run it through the same
-  // auto-repair loop as a compile error.
-  useEffect(() => {
-    if (!result || result.source !== lastCompiledSourceRef.current) return;
-    if (handledResultRef.current === result) return;
-    handledResultRef.current = result;
-    // Empty output compiles "successfully" when nothing is instantiated at
-    // the top level (e.g. the model left its module calls in a comment or
-    // outside the code fence) — repairable, and worthless to display.
-    if ((result.stl.byteLength - 84) / 50 <= 0) {
-      beginRepairOrFail(
-        result.source,
-        [
-          {
-            message:
-              "The program compiled but produced NO geometry. Make sure the modules are actually " +
-              "instantiated at the top level of the program — as real statements, not inside a comment.",
-          },
-        ],
-        [],
-      );
-      return;
-    }
-    viewerGenRef.current += 1;
-    // A compile finishing is an external event (worker → hook state); the
-    // viewer state follows it, which is exactly what this rule discourages
-    // for derived state. Guarded above to run once per result.
-    /* eslint-disable react-hooks/set-state-in-effect */
-    applyColorParts(null);
-    setColorPending(false);
-    setWarnings(parseScadWarnings(result.stderr));
-    setStl(result.stl); // show what compiled either way
-    /* eslint-enable react-hooks/set-state-in-effect */
-    const report = analyzeStlComponents(result.stl);
-    if (report.debrisCount > 0 && repairAttemptsRef.current < MAX_REPAIR_ATTEMPTS) {
-      beginRepairOrFail(
-        result.source,
-        [
-          {
-            message:
-              `The model compiled but has ${report.debrisCount} small disconnected piece(s) floating in the air ` +
-              `(${report.componentCount} separate solids total) — likely a cut that sliced clean through the part, ` +
-              `or a feature positioned without overlap. Every piece must overlap its neighbours by at least 0.2mm ` +
-              `and union into connected geometry. Rewrite the program so the result is connected (or has only ` +
-              `deliberate, plate-touching separate parts).`,
-          },
-        ],
-        [],
-      );
-      return;
-    }
-    lastSuccessfulSourceRef.current = result.source;
-    repairAttemptsRef.current = 0;
-    setRepairAttempt(0);
-    pendingRepairRef.current = null;
-    // Multi-color: a color-structured program gets its parts re-rendered
-    // one by one in the background; when they're all in, the viewer tints
-    // them and the 3MF exports per-color objects for AMS mapping. The
-    // viewer generation captured here tells the loop to stand down if a
-    // statue, restore, or Clear replaced the model meanwhile.
-    buildColorParts(result.source);
-    // Refinements of the same request upsert one library entry, so
-    // iteration keeps the final version — along with the prompt that made
-    // it and the OpenSCAD source it compiled from.
-    captureHistory(
-      {
-        kind: "compiled",
-        name: `${slugify(libraryNameHint)}.stl`,
-        mime: "model/stl",
-        prompt: libraryNameHint,
-        scad: result.source,
-      },
-      result.stl,
-    );
-  }, [result, captureHistory, beginRepairOrFail, applyColorParts, buildColorParts, libraryNameHint]);
-
-  // Compile failure → auto-repair (code faults) or surface directly:
-  // timeouts mean the model is too heavy, environment failures mean the
-  // compiler never loaded — neither is fixable by rewriting code.
-  useEffect(() => {
-    if (!failure || failure.source !== lastCompiledSourceRef.current) return;
-    if (handledFailureRef.current === failure) return;
-    handledFailureRef.current = failure;
-    if (failure.kind === "timeout") {
-      const source = failure.source;
-      setViewerError({
-        title: "Render timed out",
-        hint: "This model is heavy for the in-browser compiler. Retry with more time, or ask for a simpler shape / lower detail.",
-        errors: failure.errors,
-        stderr: failure.stderr,
-        retry: {
-          label: "Retry with a 5-minute limit",
-          run: () => {
-            setViewerError(null);
-            // Re-arm the staleness guard: a chat message sent since the
-            // timeout nulled it, and the retry's result would be discarded.
-            lastCompiledSourceRef.current = source;
-            compile(source, compileFilesOf(uploadsRef.current), { timeoutMs: 300_000 });
-          },
+  // A compile finishing is an external event (worker → hook state); the
+  // viewer state follows it.
+  const showCompiledModel = useCallback(
+    (compiled: NonNullable<typeof result>) => {
+      viewerGenRef.current += 1;
+      applyColorParts(null);
+      setColorPending(false);
+      setWarnings(parseScadWarnings(compiled.stderr));
+      setStl(compiled.stl); // show what compiled either way
+    },
+    [applyColorParts],
+  );
+  const acceptCompiledModel = useCallback(
+    (compiled: NonNullable<typeof result>) => {
+      // Multi-color: a color-structured program gets its parts re-rendered
+      // one by one in the background; when they're all in, the viewer tints
+      // them and the 3MF exports per-color objects for AMS mapping. The
+      // viewer generation captured here tells the loop to stand down if a
+      // statue, restore, or Clear replaced the model meanwhile.
+      buildColorParts(compiled.source);
+      // Refinements of the same request upsert one library entry, so
+      // iteration keeps the final version — along with the prompt that made
+      // it and the OpenSCAD source it compiled from.
+      captureHistory(
+        {
+          kind: "compiled",
+          name: `${slugify(libraryNameHint)}.stl`,
+          mime: "model/stl",
+          prompt: libraryNameHint,
+          scad: compiled.source,
         },
-      });
-    } else if (failure.kind === "environment") {
-      setViewerError({
-        title: "The 3D compiler failed to load",
-        hint: "This is an environment problem, not a model problem — check your connection and that /openscad assets are served, then reload the page.",
-        errors: failure.errors,
-        stderr: failure.stderr,
-      });
-    } else {
-      beginRepairOrFail(failure.source, failure.errors, failure.stderr);
-    }
-  }, [failure, beginRepairOrFail, compile]);
+        compiled.stl,
+      );
+    },
+    [buildColorParts, captureHistory, libraryNameHint],
+  );
+  const lastAssistant = messages.findLast((m) => m.role === "assistant");
+  const {
+    attempt: repairAttempt,
+    reset: resetRepair,
+    modelReplaced,
+    expect: expectProgram,
+  } = useAutoRepair({
+    status,
+    reply: lastAssistant ? uiMessageText(lastAssistant) : null,
+    result,
+    failure,
+    compile: compileProgram,
+    cancel,
+    lint: lintProgram,
+    sendRepair,
+    showError: setViewerError,
+    onModel: showCompiledModel,
+    onAccepted: acceptCompiledModel,
+  });
+
+  // A statue, library restore, or Clear replaces whatever the viewer shows,
+  // and the repair loop forgets the program it last showed.
+  const replaceViewerModel = useCallback(
+    (bytes: ArrayBuffer | null) => {
+      viewerGenRef.current += 1;
+      modelReplaced();
+      applyColorParts(null);
+      setColorPending(false);
+      setWarnings([]);
+      setViewerError(null);
+      setStl(bytes);
+    },
+    [applyColorParts, modelReplaced],
+  );
 
   // Convert the current preview STL to 3MF (Bambu Studio's native format)
   // client-side — works for compiled models and statues alike. When the
@@ -542,11 +415,7 @@ export default function AppShell({
   // parts so the model can see them.
   const handleSend = useCallback(
     (text: string) => {
-      repairAttemptsRef.current = 0;
-      setRepairAttempt(0);
-      pendingRepairRef.current = null;
-      lastCompiledSourceRef.current = null;
-      cancel();
+      resetRepair();
       const fresh = uploadsRef.current.filter((u) => unannouncedRef.current.has(u.path));
       unannouncedRef.current.clear();
       let fullText = text;
@@ -579,7 +448,7 @@ export default function AppShell({
       if (imageParts.length > 0) sendMessage({ text: fullText, files: imageParts });
       else sendMessage({ text: fullText });
     },
-    [cancel, sendMessage],
+    [resetRepair, sendMessage],
   );
 
   const handleAttach = useCallback(
@@ -804,7 +673,7 @@ export default function AppShell({
     debugWindow.__ask3dColorParts = () =>
       colorPartsRef.current?.map((p) => `${p.name}:${p.stl.byteLength}b`) ?? null;
     debugWindow.__ask3dCompile = (source: string, files?: CompileFile[]) => {
-      lastCompiledSourceRef.current = source;
+      expectProgram(source);
       setViewerError(null);
       compile(source, files ?? compileFilesOf(uploadsRef.current));
     };
@@ -821,7 +690,7 @@ export default function AppShell({
       const last = [...messages].reverse().find((m) => m.role === "assistant");
       return last ? uiMessageText(last) : null;
     })();
-  }, [compile, failure, stl, result, messages]);
+  }, [compile, expectProgram, failure, stl, result, messages]);
 
   const chatBusy = status === "submitted" || status === "streaming";
   let pillState: PillState;
