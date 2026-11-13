@@ -53,24 +53,48 @@ export function useAutoRepair({
   onAccepted,
 }: AutoRepairOptions) {
   const [attempt, setAttempt] = useState(0);
+  // Attempts counted in the round under way, which `attempt` shows. A round
+  // ends with a model accepted or an error shown, and leaves none counted.
   const repairAttemptsRef = useRef(0);
+  // Repair messages sent for this human message. It outlasts a round: the
+  // timeout's Retry starts another round for the same human message, and
+  // that round doesn't get a fresh set of repairs.
+  const repairsSentRef = useRef(0);
+  // The chat's current program: the one in its latest finished reply, or
+  // the one a retry or an outside compile started. Only its results count.
+  const currentSourceRef = useRef<string | null>(null);
+  // The program last linted or compiled, which pending errors belong to.
   const lastCompiledSourceRef = useRef<string | null>(null);
   const lastSuccessfulSourceRef = useRef<string | null>(null);
+  // The program whose model the viewer shows, or null once a statue, a
+  // library restore or Clear has replaced it.
+  const shownSourceRef = useRef<string | null>(null);
   // Errors that triggered the in-flight repair round — consumed when the
   // repair reply re-emits identical code or contains no code at all.
   const pendingRepairRef = useRef<{ errors: ScadError[]; stderr: string[] } | null>(null);
-  // Each compile result/failure is handled exactly once: the effects below
-  // re-fire on dependency identity churn, and a second pass would send a
-  // second repair message, re-save the library entry, or wipe finished
-  // color parts.
-  const handledResultRef = useRef<CompileSuccess | null>(null);
-  const handledFailureRef = useRef<CompileFailure | null>(null);
+  // Each compile result/failure is handled exactly once, however often and
+  // however late it's delivered again: the effects below re-fire on
+  // dependency identity churn, and a second pass would send a second repair
+  // message, re-save the library entry, or wipe finished color parts.
+  const handledRef = useRef(new WeakSet<object>());
   const prevChatStatusRef = useRef(status);
 
+  // Shows an error and ends the round: whatever the error, no attempt stays
+  // counted and no errors stay pending.
+  const failRound = useCallback(
+    (error: ViewerError) => {
+      repairAttemptsRef.current = 0;
+      setAttempt(0);
+      pendingRepairRef.current = null;
+      showError(error);
+    },
+    [showError],
+  );
+
   const beginRepairOrFail = useCallback(
-    (source: string, errors: ScadError[], stderr: string[]) => {
-      if (source !== lastCompiledSourceRef.current) return;
-      if (repairAttemptsRef.current < MAX_REPAIR_ATTEMPTS) {
+    (errors: ScadError[], stderr: string[]) => {
+      if (repairsSentRef.current < MAX_REPAIR_ATTEMPTS) {
+        repairsSentRef.current += 1;
         repairAttemptsRef.current += 1;
         setAttempt(repairAttemptsRef.current);
         pendingRepairRef.current = { errors, stderr };
@@ -79,8 +103,7 @@ export function useAutoRepair({
         );
         sendRepair(buildRepairMessage(lines, stderr));
       } else {
-        pendingRepairRef.current = null;
-        showError({
+        failRound({
           title: `Compile failed after ${MAX_REPAIR_ATTEMPTS} automatic fix attempts`,
           hint: "Describe what to change in the chat and I'll try a different approach.",
           errors,
@@ -88,7 +111,7 @@ export function useAutoRepair({
         });
       }
     },
-    [sendRepair, showError],
+    [sendRepair, failRound],
   );
 
   // Chat stream finished → extract fence → lint → compile.
@@ -102,35 +125,46 @@ export function useAutoRepair({
       // Mid-repair, a reply without code (prose apology, truncated fence) is
       // itself a failure — surface the stored errors instead of going silent.
       if (repairAttemptsRef.current > 0 && pendingRepairRef.current) {
-        showError({
+        failRound({
           title: "The automatic fix attempt didn't produce code",
           hint: "Describe what to change in the chat and I'll try a different approach.",
           errors: pendingRepairRef.current.errors,
           stderr: pendingRepairRef.current.stderr,
         });
-        repairAttemptsRef.current = 0;
-        setAttempt(0);
-        pendingRepairRef.current = null;
       }
       return;
     }
     if (process.env.NEXT_PUBLIC_DEBUG_BREAK === "1") code += "\nthis_is_a_debug_syntax_error(";
-    // Unchanged code that already compiled successfully: nothing to do.
-    if (code === lastSuccessfulSourceRef.current) return;
+    currentSourceRef.current = code;
+    const pending = pendingRepairRef.current;
+    // Unchanged code whose model is the one showing: nothing to do. Unless
+    // it's the reply to a repair: then the program that failed was never
+    // fixed, and saying nothing would leave the old model up as if the
+    // request had been carried out.
+    if (code === lastSuccessfulSourceRef.current && code === shownSourceRef.current) {
+      if (pending) {
+        failRound({
+          title: "The automatic fix attempt went back to the model already showing",
+          hint: "Describe what to change in the chat and I'll try a different approach.",
+          errors: pending.errors,
+          stderr: pending.stderr,
+        });
+      }
+      return;
+    }
     // The model re-emitted the failing program verbatim: count it as another
     // failed round (or exhaust) rather than silently stalling the loop.
-    if (code === lastCompiledSourceRef.current && pendingRepairRef.current) {
-      const pending = pendingRepairRef.current;
-      beginRepairOrFail(code, pending.errors, pending.stderr);
+    if (code === lastCompiledSourceRef.current && pending) {
+      beginRepairOrFail(pending.errors, pending.stderr);
       return;
     }
     lastCompiledSourceRef.current = code;
     showError(null);
     pendingRepairRef.current = null;
     const lintErrors = lint(code);
-    if (lintErrors.length > 0) beginRepairOrFail(code, lintErrors, []);
+    if (lintErrors.length > 0) beginRepairOrFail(lintErrors, []);
     else compile(code);
-  }, [status, reply, beginRepairOrFail, compile, lint, showError]);
+  }, [status, reply, beginRepairOrFail, failRound, compile, lint, showError]);
 
   // Compile success → show model, reset the repair counter. But first, a
   // geometry sanity check: a difference() that slices clean through a part
@@ -138,15 +172,14 @@ export function useAutoRepair({
   // print as loose debris). Detect that and run it through the same
   // auto-repair loop as a compile error.
   useEffect(() => {
-    if (!result || result.source !== lastCompiledSourceRef.current) return;
-    if (handledResultRef.current === result) return;
-    handledResultRef.current = result;
+    if (!result || result.source !== currentSourceRef.current) return;
+    if (handledRef.current.has(result)) return;
+    handledRef.current.add(result);
     // Empty output compiles "successfully" when nothing is instantiated at
     // the top level (e.g. the model left its module calls in a comment or
     // outside the code fence) — repairable, and worthless to display.
     if ((result.stl.byteLength - 84) / 50 <= 0) {
       beginRepairOrFail(
-        result.source,
         [
           {
             message:
@@ -159,10 +192,10 @@ export function useAutoRepair({
       return;
     }
     onModel(result); // show what compiled either way
+    shownSourceRef.current = result.source;
     const report = analyzeStlComponents(result.stl);
-    if (report.debrisCount > 0 && repairAttemptsRef.current < MAX_REPAIR_ATTEMPTS) {
+    if (report.debrisCount > 0 && repairsSentRef.current < MAX_REPAIR_ATTEMPTS) {
       beginRepairOrFail(
-        result.source,
         [
           {
             message:
@@ -188,12 +221,12 @@ export function useAutoRepair({
   // timeouts mean the model is too heavy, environment failures mean the
   // compiler never loaded — neither is fixable by rewriting code.
   useEffect(() => {
-    if (!failure || failure.source !== lastCompiledSourceRef.current) return;
-    if (handledFailureRef.current === failure) return;
-    handledFailureRef.current = failure;
+    if (!failure || failure.source !== currentSourceRef.current) return;
+    if (handledRef.current.has(failure)) return;
+    handledRef.current.add(failure);
     if (failure.kind === "timeout") {
       const source = failure.source;
-      showError({
+      failRound({
         title: "Render timed out",
         hint: "This model is heavy for the in-browser compiler. Retry with more time, or ask for a simpler shape / lower detail.",
         errors: failure.errors,
@@ -204,30 +237,33 @@ export function useAutoRepair({
             showError(null);
             // Re-arm the staleness guard: a chat message sent since the
             // timeout nulled it, and the retry's result would be discarded.
+            currentSourceRef.current = source;
             lastCompiledSourceRef.current = source;
             compile(source, { timeoutMs: 300_000 });
           },
         },
       });
     } else if (failure.kind === "environment") {
-      showError({
+      failRound({
         title: "The 3D compiler failed to load",
         hint: "This is an environment problem, not a model problem — check your connection and that /openscad assets are served, then reload the page.",
         errors: failure.errors,
         stderr: failure.stderr,
       });
     } else {
-      beginRepairOrFail(failure.source, failure.errors, failure.stderr);
+      beginRepairOrFail(failure.errors, failure.stderr);
     }
-  }, [failure, beginRepairOrFail, compile, showError]);
+  }, [failure, beginRepairOrFail, failRound, compile, showError]);
 
-  // A fresh human message resets the repair counter and supersedes any
-  // in-flight compile; nulling the source ref makes any late-landing stale
+  // A fresh human message resets the repair counters and supersedes any
+  // in-flight compile; nulling the source refs makes any late-landing stale
   // result or failure fail its staleness guard.
   const reset = useCallback(() => {
     repairAttemptsRef.current = 0;
+    repairsSentRef.current = 0;
     setAttempt(0);
     pendingRepairRef.current = null;
+    currentSourceRef.current = null;
     lastCompiledSourceRef.current = null;
     cancel();
   }, [cancel]);
@@ -238,10 +274,12 @@ export function useAutoRepair({
   // "already showing".
   const modelReplaced = useCallback(() => {
     lastSuccessfulSourceRef.current = null;
+    shownSourceRef.current = null;
   }, []);
 
   // A compile started outside the chat: its result is the one to take.
   const expect = useCallback((source: string) => {
+    currentSourceRef.current = source;
     lastCompiledSourceRef.current = source;
   }, []);
 

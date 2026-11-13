@@ -5,10 +5,9 @@ import { AUTO_REPAIR_PREFIX } from "../ai/system-prompt";
 import { extractLastScadBlock } from "../scad/extract";
 import type { CompileFailure, CompileSuccess, ScadError } from "../scad/types";
 
-// The repair loop moved out of components/app-shell.tsx unchanged. These
-// tests hold what it did there: what a finished reply, a compile result and
-// a compile failure lead to, and what a human message, the timeout's Retry
-// and a replaced model reset.
+// These tests hold what the repair loop does: what a finished reply, a
+// compile result and a compile failure lead to, and what a human message,
+// the timeout's Retry and a replaced model reset.
 
 // A host for React 19 hooks with an in-memory dispatcher, as the statue
 // task's tests use: the real hook runs, with its state, refs, callbacks and
@@ -219,6 +218,12 @@ function loop() {
       };
       host.render();
       return io.failure;
+    },
+    /** The compiler hands back a result or a failure it gave before. */
+    redelivers(earlier: CompileSuccess | CompileFailure) {
+      if ("stl" in earlier) io.result = earlier;
+      else io.failure = earlier;
+      host.render();
     },
     /** A render in which every callback the component passes is a new one. */
     churn() {
@@ -536,38 +541,248 @@ describe("useAutoRepair", () => {
     expect(l.io.accepted).toEqual([result]);
   });
 
-  it("leaves a fresh set of attempts after a success, with no human message between", () => {
+  it(`sends ${MAX_REPAIR_ATTEMPTS} repairs for one human message, whatever rounds they're sent in`, () => {
     const l = loop();
     l.says(reply("cube(10);"));
     l.fails(A);
     l.says(reply("cube(11);"));
     l.succeeds(B, SOLID);
     expect(l.io.repairs).toHaveLength(1);
-    // A compile started outside the chat fails twice: both are repaired.
+    expect(l.attempt).toBe(0);
+    // A compile started outside the chat fails. The round it starts counts
+    // from one, and takes the human message's second repair.
     l.expect("sphere(5);");
     l.fails("sphere(5);");
+    expect(l.io.repairs).toHaveLength(2);
     expect(l.attempt).toBe(1);
     l.says(reply("cube(12);"));
-    l.fails(C);
+    const last = l.fails(C);
+    expect(l.io.repairs).toHaveLength(2);
+    expect(l.error).toEqual({
+      title: "Compile failed after 2 automatic fix attempts",
+      hint: "Describe what to change in the chat and I'll try a different approach.",
+      errors: last.errors,
+      stderr: last.stderr,
+    });
+    // A model with debris is accepted as it is, once the two are sent.
+    l.expect("sphere(6);");
+    const debris = l.succeeds("sphere(6);", WITH_DEBRIS);
+    expect(l.io.repairs).toHaveLength(2);
+    expect(l.io.accepted.at(-1)).toBe(debris);
+    // A human message gives the replies that follow a fresh two.
+    l.humanMessage();
+    l.says(reply("cube(10);"));
+    l.fails(A);
     expect(l.io.repairs).toHaveLength(3);
-    expect(l.attempt).toBe(2);
   });
 
-  // As it was in the component, and what the check that comes next should
-  // show: the reply to a repair re-emits the program that last compiled, the
-  // one in the viewer, and the round ends with nothing said.
-  it("says nothing when a repair reply re-emits the program already showing", () => {
+  it("doesn't give the timeout's retry a fresh set of repairs", () => {
+    const l = loop();
+    l.says(reply("cube(10);"));
+    l.fails(A);
+    l.says(reply("cube(11);"));
+    l.fails(B);
+    l.says(reply("cube(12);"));
+    l.fails(C, "timeout");
+    l.error!.retry!.run();
+    const last = l.fails(C);
+    expect(l.io.repairs).toHaveLength(2);
+    expect(l.error).toEqual({
+      title: "Compile failed after 2 automatic fix attempts",
+      hint: "Describe what to change in the chat and I'll try a different approach.",
+      errors: last.errors,
+      stderr: last.stderr,
+    });
+  });
+
+  it("leaves no attempt counted, and no errors pending, once an error is shown", () => {
+    for (const kind of ["timeout", "environment"] as const) {
+      const l = loop();
+      l.says(reply("cube(10);"));
+      l.fails(A);
+      expect(l.attempt).toBe(1);
+      // A compile of the same program, started outside the chat, ends the
+      // round with an error while the repair's errors are still pending.
+      l.expect(A);
+      l.fails(A, kind);
+      expect(l.error?.title).toBe(kind === "timeout" ? "Render timed out" : "The 3D compiler failed to load");
+      expect(l.attempt).toBe(0);
+      // With nothing pending, the same program in a reply is a new program
+      // to compile, not a repair that re-emitted the one that failed.
+      l.says(reply("cube(10);"));
+      expect(l.io.repairs).toHaveLength(1);
+      expect(l.io.compiles.map((c) => c.source)).toEqual([A, A]);
+    }
+    const l = loop();
+    l.says(reply("cube(10);"));
+    l.fails(A);
+    l.says(reply("cube(11);"));
+    l.fails(B);
+    l.says(reply("cube(12);"));
+    l.fails(C);
+    expect(l.error?.title).toBe("Compile failed after 2 automatic fix attempts");
+    expect(l.attempt).toBe(0);
+  });
+
+  it("shows the failing program's errors when a repair reply goes back to the model already showing", () => {
+    const l = loop();
+    l.says(reply("cube(10);"));
+    l.succeeds(A, SOLID);
+    l.humanMessage();
+    l.says(reply("cube(11);"));
+    const failure = l.fails(B);
+    expect(l.attempt).toBe(1);
+    l.says(reply("cube(10);"));
+    expect(l.io.compiles.map((c) => c.source)).toEqual([A, B]);
+    expect(l.io.repairs).toHaveLength(1);
+    expect(l.error).toEqual({
+      title: "The automatic fix attempt went back to the model already showing",
+      hint: "Describe what to change in the chat and I'll try a different approach.",
+      errors: failure.errors,
+      stderr: failure.stderr,
+    });
+    expect(l.attempt).toBe(0);
+    // The round is over. The same reply again is the program already
+    // showing, and nothing more.
+    const errors = l.io.errors.length;
+    l.says(reply("cube(10);"));
+    expect(l.io.errors).toHaveLength(errors);
+    expect(l.io.compiles).toHaveLength(2);
+  });
+
+  it("compiles the accepted program again while another program's model is showing", () => {
+    const l = loop();
+    l.says(reply("cube(10);"));
+    const first = l.succeeds(A, SOLID);
+    l.humanMessage();
+    l.says(reply("cube(11);"));
+    const debris = l.succeeds(B, WITH_DEBRIS);
+    expect(l.io.shown.at(-1)).toBe(debris);
+    expect(l.io.repairs).toHaveLength(1);
+    // The repair goes back to the first program. Its model isn't the one
+    // showing, so it compiles, and the viewer gets it back.
+    l.says(reply("cube(10);"));
+    expect(l.io.compiles.map((c) => c.source)).toEqual([A, B, A]);
+    expect(l.error).toBeNull();
+    const again = l.succeeds(A, SOLID);
+    expect(l.io.shown.at(-1)).toBe(again);
+    expect(l.io.accepted).toEqual([first, again]);
+    expect(l.attempt).toBe(0);
+    // The same holds with no repair pending.
+    l.humanMessage();
+    l.says(reply("cube(11);"));
+    l.succeeds(B, WITH_DEBRIS);
+    l.says("I can't fix that one.");
+    expect(l.error?.title).toBe("The automatic fix attempt didn't produce code");
+    l.humanMessage();
+    l.says(reply("cube(10);"));
+    expect(l.io.compiles.map((c) => c.source)).toEqual([A, B, A, B, A]);
+  });
+
+  it("handles a result and a failure once, however late the compiler hands them back", () => {
+    const l = loop();
+    l.says(reply("cube(10);"));
+    const first = l.succeeds(A, WITH_DEBRIS);
+    l.succeeds(A, WITH_DEBRIS);
+    expect(l.io.shown).toHaveLength(2);
+    expect(l.io.repairs).toHaveLength(2);
+    // The first result comes back after the second was handled.
+    l.redelivers(first);
+    expect(l.io.shown).toHaveLength(2);
+    expect(l.io.accepted).toEqual([]);
+    const m = loop();
+    m.says(reply("cube(10);"));
+    const failure = m.fails(A);
+    m.fails(A);
+    expect(m.io.repairs).toHaveLength(2);
+    const errors = m.io.errors.length;
+    m.redelivers(failure);
+    expect(m.io.errors).toHaveLength(errors);
+    expect(m.attempt).toBe(2);
+    // A human message doesn't make an old failure new.
+    m.humanMessage();
+    m.says(reply("cube(10);"));
+    m.redelivers(failure);
+    expect(m.io.repairs).toHaveLength(2);
+  });
+
+  it("takes a re-emitted program as the one that failed, wherever its compile started", () => {
+    // The timeout's retry, after a human message.
+    const l = loop();
+    l.says(reply("cube(10);"));
+    l.fails(A, "timeout");
+    l.humanMessage();
+    l.error!.retry!.run();
+    l.fails(A);
+    expect(l.io.repairs).toHaveLength(1);
+    l.says(reply("cube(10);"));
+    expect(l.io.repairs).toHaveLength(2);
+    expect(l.io.compiles.map((c) => c.source)).toEqual([A, A]);
+    // A compile started outside the chat.
+    const m = loop();
+    m.expect("sphere(5);");
+    m.fails("sphere(5);");
+    m.says(reply("sphere(5);"));
+    expect(m.io.repairs).toHaveLength(2);
+    expect(m.io.compiles).toEqual([]);
+  });
+
+  it("forgets the program that failed, and the one that was showing, when they're gone", () => {
+    // A human message: the program that failed before it is a new program.
     const l = loop();
     l.says(reply("cube(10);"));
     l.succeeds(A, SOLID);
     l.humanMessage();
     l.says(reply("cube(11);"));
     l.fails(B);
+    l.humanMessage();
+    // The reply is the program showing, so it's skipped. A failure for it,
+    // wherever it comes from, is the current program's: a repair is pending.
+    l.says(reply("cube(10);"));
+    l.fails(A);
+    expect(l.io.repairs).toHaveLength(2);
+    l.says(reply("cube(11);"));
+    expect(l.io.repairs).toHaveLength(2);
+    expect(l.io.compiles.map((c) => c.source)).toEqual([A, B, B]);
+    // A replaced model: the program that made it is a new program too, and
+    // a repair that re-emits it has re-emitted the program that failed.
+    const m = loop();
+    m.says(reply("cube(10);"));
+    m.succeeds(A, SOLID);
+    m.modelReplaced();
+    m.says(reply("cube(10);"));
+    m.succeeds(A, WITH_DEBRIS);
+    expect(m.io.repairs).toHaveLength(1);
+    const errors = m.io.errors.length;
+    m.says(reply("cube(10);"));
+    expect(m.io.repairs).toHaveLength(2);
+    expect(m.io.errors).toHaveLength(errors);
+  });
+
+  it("counts results for the chat's current program, and no other", () => {
+    const l = loop();
+    l.says(reply("cube(10);"));
+    l.succeeds(A, SOLID);
+    l.humanMessage();
+    l.says(reply("cube(11);"));
+    l.fails(B);
+    // The repair's reply goes back to the first program, which is showing:
+    // an error, and the first program is the chat's current one.
+    l.says(reply("cube(10);"));
     const errors = l.io.errors.length;
+    l.fails(B);
+    l.fails(B, "timeout");
+    l.succeeds(B, SOLID);
+    expect(l.io.repairs).toHaveLength(1);
+    expect(l.io.errors).toHaveLength(errors);
+    expect(l.io.shown).toHaveLength(1);
+    const again = l.succeeds(A, SOLID);
+    expect(l.io.accepted.at(-1)).toBe(again);
+    // A reply that's skipped makes its program the current one too.
+    l.humanMessage();
     l.says(reply("cube(10);"));
     expect(l.io.compiles.map((c) => c.source)).toEqual([A, B]);
-    expect(l.io.errors).toHaveLength(errors);
-    expect(l.io.repairs).toHaveLength(1);
-    expect(l.attempt).toBe(1);
+    l.fails(A, "environment");
+    expect(l.error?.title).toBe("The 3D compiler failed to load");
   });
 });
