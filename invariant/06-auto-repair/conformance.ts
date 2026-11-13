@@ -104,9 +104,11 @@ class HookHost {
       if (!this.dirty) return;
     }
   }
-  ref(name: "count" | "latest" | "cached" | "pending" | "handledResult" | "handledFailure" | "status"): any {
-    // These are the seven useRef calls in the real hook, in declaration order.
-    const names = ["count", "latest", "cached", "pending", "handledResult", "handledFailure", "status"];
+  ref(name: "count" | "latest" | "cached" | "pending"): any {
+    // These are the nine useRef calls in the real hook, in declaration order.
+    // The driver reads four. It keeps its own account of the rest: the
+    // current program, the viewer, the repairs sent and what was handled.
+    const names = ["count", "sent", "current", "latest", "cached", "shown", "pending", "handled", "status"];
     const refs = this.cells.filter(cell => cell.kind === "ref");
     if (refs.length !== names.length) throw new Error("Update the storage adapter for the hook's new ref layout");
     return refs[names.indexOf(name)].value.current;
@@ -192,8 +194,8 @@ class Driver {
       showError: error => {
         this.calls.push(error ? "showError" : "clearError");
         this.error = error;
-        // The retry closure is created from the failure the hook just stored.
-        this.errorSource = error?.retry ? this.host.ref("handledFailure").source : null;
+        // The retry closure is created for the failure being delivered.
+        this.errorSource = error?.retry ? this.active?.object.source ?? null : null;
         if (error) this.phase = "error";
       },
       onModel: result => { this.calls.push("onModel"); this.viewer = result; },
@@ -202,10 +204,6 @@ class Driver {
   }
   settle(): void {
     this.host.settle();
-    for (const name of ["handledResult", "handledFailure"] as const) {
-      const object = this.host.ref(name);
-      if (object) this.handled.add(object);
-    }
   }
   read(): State {
     const cached = this.host.ref("cached");
@@ -242,7 +240,14 @@ class Driver {
     if (["good", "debris", "empty"].includes(delivery.kind)) this.host.options.result = delivery.object as Success;
     else this.host.options.failure = delivery.object as Failure;
     this.settle();
+    this.handledIfCurrent(delivery, before);
     this.observe(delivery.kind, delivery.object.source, before, duplicate);
+  }
+  // The identity ledger is the driver's own, not read from the hook: an
+  // object delivered for the current program is one the hook had to act on,
+  // and so is handled from then on, whatever the hook recorded.
+  handledIfCurrent(delivery: Delivery, before: State): void {
+    if (delivery.object.source === before.current) this.handled.add(delivery.object);
   }
   step(operation: Operation): State {
     const before = this.read();
@@ -293,6 +298,7 @@ class Driver {
       case "churn": {
         const duplicate = this.active ? this.handled.has(this.active.object) : false;
         Object.assign(this.host.options, this.callbacks()); this.settle();
+        if (this.active) this.handledIfCurrent(this.active, before);
         if (this.active) this.observe(this.active.kind, this.active.object.source, before, duplicate);
         break;
       }
@@ -311,9 +317,8 @@ class Driver {
       : operation.kind === "churn" ? this.active : null;
     const kind = operation.kind === "signal" ? operation.signal : delivery?.kind;
     const source = operation.kind === "signal" ? operation.source : delivery?.object.source;
-    const handledNow = kind === "code" ? this.host.ref("handledFailure") : this.host.ref("handledResult");
     return !!kind && ["code", "empty", "debris"].includes(kind) && source === before.latest &&
-      (!delivery || delivery.object !== handledNow);
+      (!delivery || !this.handled.has(delivery.object));
   }
 }
 
