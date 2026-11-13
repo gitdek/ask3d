@@ -66,8 +66,8 @@ export function useAutoRepair({
   // The program last linted or compiled, which pending errors belong to.
   const lastCompiledSourceRef = useRef<string | null>(null);
   const lastSuccessfulSourceRef = useRef<string | null>(null);
-  // The program whose model the viewer shows, or null once a statue, a
-  // library restore or Clear has replaced it.
+  // The program whose model the hook last showed. The accepted program's
+  // model is the one in the viewer while this is that program.
   const shownSourceRef = useRef<string | null>(null);
   // Errors that triggered the in-flight repair round — consumed when the
   // repair reply re-emits identical code or contains no code at all.
@@ -158,10 +158,17 @@ export function useAutoRepair({
       beginRepairOrFail(pending.errors, pending.stderr);
       return;
     }
+    const lintErrors = lint(code);
+    // A repair went back to the accepted program, and it no longer lints:
+    // a file it reads was taken away. That's another failed attempt at the
+    // program the repair was for, which stays the one pending errors are of.
+    if (lintErrors.length > 0 && pending && code === lastSuccessfulSourceRef.current) {
+      beginRepairOrFail(lintErrors, []);
+      return;
+    }
     lastCompiledSourceRef.current = code;
     showError(null);
     pendingRepairRef.current = null;
-    const lintErrors = lint(code);
     if (lintErrors.length > 0) beginRepairOrFail(lintErrors, []);
     else compile(code);
   }, [status, reply, beginRepairOrFail, failRound, compile, lint, showError]);
@@ -274,7 +281,6 @@ export function useAutoRepair({
   // "already showing".
   const modelReplaced = useCallback(() => {
     lastSuccessfulSourceRef.current = null;
-    shownSourceRef.current = null;
   }, []);
 
   // A compile started outside the chat: its result is the one to take.

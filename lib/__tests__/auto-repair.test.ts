@@ -576,6 +576,22 @@ describe("useAutoRepair", () => {
     expect(l.io.repairs).toHaveLength(3);
   });
 
+  it("counts a round's attempts from one after an error ended the round before", () => {
+    const l = loop();
+    l.says(reply("cube(10);"));
+    l.fails(A);
+    expect(l.attempt).toBe(1);
+    l.says(reply("cube(11);"));
+    l.fails(B, "timeout");
+    expect(l.attempt).toBe(0);
+    // The retry's compile fails: the message's second repair, and the first
+    // attempt of the round the retry started.
+    l.error!.retry!.run();
+    l.fails(B);
+    expect(l.io.repairs).toHaveLength(2);
+    expect(l.attempt).toBe(1);
+  });
+
   it("doesn't give the timeout's retry a fresh set of repairs", () => {
     const l = loop();
     l.says(reply("cube(10);"));
@@ -648,6 +664,69 @@ describe("useAutoRepair", () => {
     l.says(reply("cube(10);"));
     expect(l.io.errors).toHaveLength(errors);
     expect(l.io.compiles).toHaveLength(2);
+    // A program that makes no geometry is never shown, so the model in the
+    // viewer is still the first program's when a repair goes back to it.
+    l.humanMessage();
+    l.says(reply("cube(12);"));
+    l.succeeds(C, EMPTY);
+    expect(l.io.repairs).toHaveLength(2);
+    l.says(reply("cube(10);"));
+    expect(l.error?.title).toBe("The automatic fix attempt went back to the model already showing");
+    expect(l.error?.errors[0].message).toContain("produced NO geometry");
+    expect(l.io.compiles.map((c) => c.source)).toEqual([A, B, C]);
+  });
+
+  it("counts a repair that goes back to an accepted program that no longer lints as a failed attempt", () => {
+    const l = loop();
+    l.says(reply("cube(10);"));
+    l.succeeds(A, SOLID);
+    l.humanMessage();
+    l.says(reply("cube(11);"));
+    l.succeeds(B, WITH_DEBRIS);
+    expect(l.io.repairs).toHaveLength(1);
+    // A file the first program reads was taken away since it was accepted.
+    l.io.lintErrors = [{ message: "import() of a file that wasn't attached", line: 1 }];
+    const errors = l.io.errors.length;
+    l.says(reply("cube(10);"));
+    expect(l.io.compiles.map((c) => c.source)).toEqual([A, B]);
+    expect(l.io.repairs).toHaveLength(2);
+    expect(l.io.repairs[1]).toContain("Line 1: import() of a file that wasn't attached");
+    expect(l.attempt).toBe(2);
+    // No error was cleared on the way, and the program the repair was for
+    // is still the one a reply can re-emit.
+    expect(l.io.errors).toHaveLength(errors);
+    l.io.lintErrors = [];
+    l.says(reply("cube(11);"));
+    expect(l.io.compiles.map((c) => c.source)).toEqual([A, B]);
+    expect(l.error?.title).toBe("Compile failed after 2 automatic fix attempts");
+    // With no repair pending, the accepted program is a new failure when it
+    // doesn't lint: the error showing is cleared, and a repair goes out.
+    const m = loop();
+    m.says(reply("cube(10);"));
+    m.succeeds(A, SOLID);
+    m.humanMessage();
+    m.says(reply("cube(11);"));
+    m.succeeds(B, WITH_DEBRIS);
+    m.says("I can't fix that one.");
+    expect(m.error?.title).toBe("The automatic fix attempt didn't produce code");
+    m.humanMessage();
+    m.io.lintErrors = [{ message: "import() of a file that wasn't attached", line: 1 }];
+    m.says(reply("cube(10);"));
+    expect(m.io.repairs).toHaveLength(2);
+    expect(m.io.errors.at(-1)).toBeNull();
+    // A repair's reply with a program that was never accepted is a new
+    // failure too: that program becomes the one a reply can re-emit.
+    const n = loop();
+    n.says(reply("cube(10);"));
+    n.fails(A);
+    n.io.lintErrors = [{ message: "import() of a file that wasn't attached", line: 1 }];
+    n.says(reply("cube(11);"));
+    expect(n.io.repairs).toHaveLength(2);
+    expect(n.io.errors.at(-1)).toBeNull();
+    n.io.lintErrors = [];
+    n.says(reply("cube(11);"));
+    expect(n.io.compiles.map((c) => c.source)).toEqual([A]);
+    expect(n.error?.title).toBe("Compile failed after 2 automatic fix attempts");
   });
 
   it("compiles the accepted program again while another program's model is showing", () => {
@@ -693,17 +772,20 @@ describe("useAutoRepair", () => {
     const m = loop();
     m.says(reply("cube(10);"));
     const failure = m.fails(A);
-    m.fails(A);
+    const second = m.fails(A);
     expect(m.io.repairs).toHaveLength(2);
     const errors = m.io.errors.length;
     m.redelivers(failure);
     expect(m.io.errors).toHaveLength(errors);
     expect(m.attempt).toBe(2);
-    // A human message doesn't make an old failure new.
+    // A human message doesn't make an old failure new. Each is handed back
+    // in turn, so the hook sees a failure other than the one it holds.
     m.humanMessage();
     m.says(reply("cube(10);"));
+    m.redelivers(second);
     m.redelivers(failure);
     expect(m.io.repairs).toHaveLength(2);
+    expect(m.io.errors).toHaveLength(errors + 1);
   });
 
   it("takes a re-emitted program as the one that failed, wherever its compile started", () => {
