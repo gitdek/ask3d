@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChatStatus } from "ai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ViewerError } from "../components/viewer-panel";
 import { buildRepairMessage } from "../lib/ai/system-prompt";
@@ -8,8 +9,6 @@ import { extractLastScadBlock } from "../lib/scad/extract";
 import type { CompileFailure, CompileSuccess, ScadError } from "../lib/scad/types";
 
 export const MAX_REPAIR_ATTEMPTS = 2;
-
-type ChatStatus = "submitted" | "streaming" | "ready" | "error";
 
 export interface AutoRepairOptions {
   /** The chat's status, as it reports it. */

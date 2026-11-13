@@ -146,6 +146,8 @@ function loop() {
     result: null as CompileSuccess | null,
     failure: null as CompileFailure | null,
     lintErrors: [] as ScadError[],
+    linted: [] as string[],
+    failures: 0,
     compiles: [] as { source: string; options?: { timeoutMs?: number } }[],
     cancels: 0,
     repairs: [] as string[],
@@ -153,14 +155,17 @@ function loop() {
     shown: [] as CompileSuccess[],
     accepted: [] as CompileSuccess[],
   };
-  const compile = (source: string, options?: { timeoutMs?: number }) => {
+  let compile = (source: string, options?: { timeoutMs?: number }) => {
     io.compiles.push({ source, options });
   };
   const cancel = () => {
     io.cancels += 1;
   };
-  const lint = () => io.lintErrors;
-  const sendRepair = (text: string) => {
+  const lint = (source: string) => {
+    io.linted.push(source);
+    return io.lintErrors;
+  };
+  let sendRepair = (text: string) => {
     io.repairs.push(text);
   };
   const showError = (error: Shown | null) => {
@@ -204,23 +209,33 @@ function loop() {
       host.render();
       return io.result;
     },
+    /** Each failure has errors of its own, so a test can tell which one is shown. */
     fails(source: string, kind: CompileFailure["kind"] = "compile") {
+      const n = ++io.failures;
       io.failure = {
         source, kind,
-        errors: [{ message: "Parser error: syntax error", line: 3 }],
-        stderr: ["ERROR: Parser error: syntax error in file, line 3"],
+        errors: [{ message: `Parser error ${n}: syntax error`, line: 2 + n }],
+        stderr: [`ERROR: Parser error ${n}: syntax error in file, line ${2 + n}`],
       };
       host.render();
       return io.failure;
     },
-    /** A render in which the component's callbacks are new ones. */
+    /** A render in which every callback the component passes is a new one. */
     churn() {
+      const [compiled, repaired] = [compile, sendRepair];
+      compile = (source, options) => compiled(source, options);
+      sendRepair = (text) => repaired(text);
       onModel = (result) => {
         io.shown.push(result);
       };
       onAccepted = (result) => {
         io.accepted.push(result);
       };
+      host.render();
+    },
+    /** A render with the chat as it is: its status, and whatever its last reply says now. */
+    renders(text: string | null) {
+      io.reply = text;
       host.render();
     },
     humanMessage() {
@@ -242,18 +257,31 @@ describe("useAutoRepair", () => {
   it("lints and compiles a finished reply's program, once", () => {
     const l = loop();
     l.says(reply("cube(10);"));
+    expect(l.io.linted).toEqual([A]);
     expect(l.io.compiles).toEqual([{ source: A, options: undefined }]);
     expect(l.io.repairs).toEqual([]);
     expect(l.io.errors).toEqual([null]);
     expect(l.attempt).toBe(0);
   });
 
+  it("acts on a reply when the chat finishes, not on a render while it's ready", () => {
+    const l = loop();
+    l.says(reply("cube(10);"));
+    l.renders(reply("cube(11);"));
+    l.renders(reply("cube(12);"));
+    expect(l.io.compiles.map((c) => c.source)).toEqual([A]);
+  });
+
   it("does nothing before the chat has an assistant message, or for a reply with no program", () => {
     const l = loop();
+    // The chat is busy and finishes with no assistant message at all.
     l.io.status = "submitted";
-    l.io.reply = null;
-    l.says("");
+    l.renders(null);
+    l.io.status = "ready";
+    l.renders(null);
+    expect(l.io.linted).toEqual([]);
     l.says("That shape can't be printed without supports.\n```openscad\ncube(");
+    expect(l.io.linted).toEqual([]);
     expect(l.io.compiles).toEqual([]);
     expect(l.io.errors).toEqual([]);
   });
@@ -270,26 +298,64 @@ describe("useAutoRepair", () => {
   it(`repairs a compile error ${MAX_REPAIR_ATTEMPTS} times for one human message, then gives up`, () => {
     const l = loop();
     l.says(reply("cube(10);"));
-    const first = l.fails(A);
+    l.fails(A);
     expect(l.io.repairs).toHaveLength(1);
     expect(l.io.repairs[0].startsWith(AUTO_REPAIR_PREFIX)).toBe(true);
-    expect(l.io.repairs[0]).toContain("Line 3: Parser error: syntax error");
-    expect(l.io.repairs[0]).toContain("ERROR: Parser error: syntax error in file, line 3");
+    expect(l.io.repairs[0]).toContain("Line 3: Parser error 1: syntax error");
+    expect(l.io.repairs[0]).toContain("ERROR: Parser error 1: syntax error in file, line 3");
     expect(l.attempt).toBe(1);
     l.says(reply("cube(11);"));
     l.fails(B);
     expect(l.io.repairs).toHaveLength(2);
+    expect(l.io.repairs[1]).toContain("Line 4: Parser error 2: syntax error");
     expect(l.attempt).toBe(2);
     l.says(reply("cube(12);"));
-    l.fails(C);
+    const last = l.fails(C);
     expect(l.io.repairs).toHaveLength(2);
     expect(l.io.compiles.map((c) => c.source)).toEqual([A, B, C]);
+    // The errors shown are those of the failure that spent the attempts.
     expect(l.error).toEqual({
       title: "Compile failed after 2 automatic fix attempts",
       hint: "Describe what to change in the chat and I'll try a different approach.",
-      errors: first.errors,
-      stderr: first.stderr,
+      errors: last.errors,
+      stderr: last.stderr,
     });
+  });
+
+  it("gives up on a third lint failure, and on a third empty model, as on a third compile error", () => {
+    const l = loop();
+    l.io.lintErrors = [{ message: "import() of a file that wasn't attached", line: 1 }];
+    l.says(reply("cube(10);"));
+    l.says(reply("cube(11);"));
+    l.says(reply("cube(12);"));
+    expect(l.io.repairs).toHaveLength(2);
+    expect(l.io.compiles).toEqual([]);
+    expect(l.error).toEqual({
+      title: "Compile failed after 2 automatic fix attempts",
+      hint: "Describe what to change in the chat and I'll try a different approach.",
+      errors: l.io.lintErrors,
+      stderr: [],
+    });
+    const m = loop();
+    m.says(reply("cube(10);"));
+    m.succeeds(A, EMPTY);
+    m.says(reply("cube(11);"));
+    m.succeeds(B, EMPTY);
+    m.says(reply("cube(12);"));
+    m.succeeds(C, EMPTY);
+    expect(m.io.repairs).toHaveLength(2);
+    expect(m.io.shown).toEqual([]);
+    expect(m.error?.title).toBe("Compile failed after 2 automatic fix attempts");
+    expect(m.error?.errors[0].message).toContain("produced NO geometry");
+  });
+
+  it("takes a reply that finishes after the chat reported an error", () => {
+    const l = loop();
+    l.io.status = "error";
+    l.renders(reply("cube(10);"));
+    l.io.status = "ready";
+    l.renders(reply("cube(10);"));
+    expect(l.io.compiles.map((c) => c.source)).toEqual([A]);
   });
 
   it("counts a lint failure as an attempt, without compiling", () => {
@@ -305,14 +371,23 @@ describe("useAutoRepair", () => {
   it("counts a reply that re-emits the failing program as another attempt, without compiling again", () => {
     const l = loop();
     l.says(reply("cube(10);"));
-    l.fails(A);
+    const failure = l.fails(A);
+    l.says(reply("cube(10);"));
+    expect(l.io.compiles).toHaveLength(1);
+    expect(l.io.linted).toEqual([A]);
+    expect(l.io.repairs).toHaveLength(2);
+    // The second repair carries the errors the first one was sent for.
+    expect(l.io.repairs[1]).toBe(l.io.repairs[0]);
+    expect(l.io.repairs[1]).toContain("Line 3: Parser error 1: syntax error");
     l.says(reply("cube(10);"));
     expect(l.io.compiles).toHaveLength(1);
     expect(l.io.repairs).toHaveLength(2);
-    l.says(reply("cube(10);"));
-    expect(l.io.compiles).toHaveLength(1);
-    expect(l.io.repairs).toHaveLength(2);
-    expect(l.error?.title).toBe("Compile failed after 2 automatic fix attempts");
+    expect(l.error).toEqual({
+      title: "Compile failed after 2 automatic fix attempts",
+      hint: "Describe what to change in the chat and I'll try a different approach.",
+      errors: failure.errors,
+      stderr: failure.stderr,
+    });
   });
 
   it("shows the stored errors when a repair reply has no program, and resets", () => {
@@ -369,6 +444,12 @@ describe("useAutoRepair", () => {
     l.fails(A);
     expect(l.io.shown).toEqual([]);
     expect(l.io.repairs).toEqual([]);
+    // A timeout and a compiler that didn't load are shown, so a stale one
+    // would put an error up for a program the chat has moved on from.
+    const errors = l.io.errors.length;
+    l.fails(A, "timeout");
+    l.fails(A, "environment");
+    expect(l.io.errors).toHaveLength(errors);
   });
 
   it("handles each result and each failure once, whatever renders again", () => {
@@ -453,6 +534,23 @@ describe("useAutoRepair", () => {
     l.expect("sphere(5);");
     const result = l.succeeds("sphere(5);", SOLID);
     expect(l.io.accepted).toEqual([result]);
+  });
+
+  it("leaves a fresh set of attempts after a success, with no human message between", () => {
+    const l = loop();
+    l.says(reply("cube(10);"));
+    l.fails(A);
+    l.says(reply("cube(11);"));
+    l.succeeds(B, SOLID);
+    expect(l.io.repairs).toHaveLength(1);
+    // A compile started outside the chat fails twice: both are repaired.
+    l.expect("sphere(5);");
+    l.fails("sphere(5);");
+    expect(l.attempt).toBe(1);
+    l.says(reply("cube(12);"));
+    l.fails(C);
+    expect(l.io.repairs).toHaveLength(3);
+    expect(l.attempt).toBe(2);
   });
 
   // As it was in the component, and what the check that comes next should
