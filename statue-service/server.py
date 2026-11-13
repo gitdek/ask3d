@@ -29,6 +29,11 @@ from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 
+# Invariant's runtime stand-in for Nagini's contract library, shipped beside
+# this file: its contract calls do nothing when the service runs, and Nagini
+# reads them to prove admission below.
+from nagini_contracts.contracts import *
+
 SERVICE_DIR = Path(__file__).resolve().parent
 TRELLIS_DIR = SERVICE_DIR / "trellis-mac"
 TRELLIS_PYTHON = TRELLIS_DIR / ".venv" / "bin" / "python"
@@ -61,6 +66,10 @@ def tool_python() -> Path:
     """
     return SIDECAR_PYTHON if SIDECAR_PYTHON.exists() else TRELLIS_PYTHON
 MOCK = os.environ.get("STATUE_MOCK") == "1"
+# How long a mock generation takes, in seconds. The default looks like a
+# short real one in the app. The statue model's check sets it to 0, since it
+# runs well over a hundred of them.
+MOCK_SECONDS = max(0.0, float(os.environ.get("STATUE_MOCK_SECONDS", "3")))
 PORT = int(os.environ.get("STATUE_PORT", "8765"))
 WORK_DIR = Path(tempfile.gettempdir()) / "ask3d-statue"
 WORK_DIR.mkdir(parents=True, exist_ok=True)
@@ -190,7 +199,7 @@ def run_generation(task_id: str, image_path: Path, out_base: Path) -> None:
 
 def _generate(task: dict, image_path: Path, out_base: Path) -> None:
     if MOCK:
-        time.sleep(3)
+        time.sleep(MOCK_SECONDS)
         glb_path = out_base.with_suffix(".glb")
         glb_path.write_bytes(make_mock_glb())
         task["model_path"] = str(glb_path)
@@ -368,7 +377,30 @@ def _generate(task: dict, image_path: Path, out_base: Path) -> None:
     task["error"] = "generator finished but produced no .glb/.obj output"
 
 
-VALID_ENGINES = {"space", "hunyuan", "local", "trellis", "hunyuan-space"}
+VALID_ENGINES = ("space", "hunyuan", "local", "trellis", "hunyuan-space")
+
+
+def admission(has_site: bool, site: str, requested: str, busy: bool) -> int:
+    """How POST /tasks answers before it reserves the generation slot. A
+    request another site sent gets 403, and one for an engine the service
+    doesn't know 400 (D-0002); otherwise a second statue while one is queued
+    or being generated gets 409 (one at a time), and 0 admits the rest.
+    has_site says whether the request carried a Sec-Fetch-Site header, and
+    site is its value."""
+    Ensures(Implies(has_site and site != "same-origin" and site != "none", Result() == 403))
+    Ensures(Implies((not has_site or site == "same-origin" or site == "none")
+                    and requested not in VALID_ENGINES, Result() == 400))
+    Ensures(Implies((not has_site or site == "same-origin" or site == "none")
+                    and requested in VALID_ENGINES and busy, Result() == 409))
+    Ensures(Implies((not has_site or site == "same-origin" or site == "none")
+                    and requested in VALID_ENGINES and not busy, Result() == 0))
+    if has_site and site != "same-origin" and site != "none":
+        return 403
+    if requested not in VALID_ENGINES:
+        return 400
+    if busy:
+        return 409
+    return 0
 
 
 @app.get("/health")
@@ -408,16 +440,17 @@ async def create_task(
     # from READING the reply — without this, any web page could start
     # generations on this machine. The app's /statue proxy arrives same-origin.
     site = request.headers.get("sec-fetch-site")
-    if site not in (None, "same-origin", "none"):
-        raise HTTPException(status_code=403, detail="cross-site request refused")
     requested = engine or default_engine()
-    if requested not in VALID_ENGINES:
-        raise HTTPException(status_code=400, detail=f"unknown engine '{requested}'")
     # Reserve the single generation slot under the lock, but receive the
     # uploads outside it: awaiting while holding a threading.Lock parks the
     # event loop for any second request, which then can never be released.
     with tasks_lock:
-        if busy_task() is not None:
+        refused = admission(site is not None, site or "", requested, busy_task() is not None)
+        if refused == 403:
+            raise HTTPException(status_code=403, detail="cross-site request refused")
+        if refused == 400:
+            raise HTTPException(status_code=400, detail=f"unknown engine '{requested}'")
+        if refused == 409:
             raise HTTPException(status_code=409, detail="A statue is already being generated")
         needed = (
             HUNYUAN_PYTHON

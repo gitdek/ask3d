@@ -11,10 +11,14 @@
     "scope": ["."],
     "checks": [{
       "target": {"source": "server.py", "symbol": "run_generation"},
+      "observe": [{"source": "server.py", "symbol": "admission"}],
       "conformance": [{"source": "verification/generation/driver.py", "symbol": "drive"}],
       "invocations": [
-        {"id": "explore", "kind": "conformance", "check": {"source": "verification/generation/driver.py", "symbol": "drive"}, "command": "python", "args": ["driver.py"], "working_dir": "verification/generation", "env": {"STATUE_MOCK": "1"}, "sampling": {"runs": "200", "steps": "10", "seed": "1"}, "inputs": ["verification/generation/.invariant/specs/StatueGeneration.tla", "verification/generation/.invariant/ratified.lock"]}
+        {"id": "explore", "kind": "conformance", "check": {"source": "verification/generation/driver.py", "symbol": "drive"}, "command": "python", "args": ["driver.py"], "working_dir": "verification/generation", "env": {"STATUE_MOCK": "1", "STATUE_MOCK_SECONDS": "0"}, "sampling": {"runs": "200", "steps": "10", "seed": "1"}, "inputs": ["verification/generation/.invariant/specs/StatueGeneration.tla", "verification/generation/.invariant/ratified.lock"]}
       ]
+    }, {
+      "target": {"source": "server.py", "symbol": "admission"},
+      "proof": {"contracts": [{"source": "server.py", "symbol": "admission"}]}
     }]
   }
 }
