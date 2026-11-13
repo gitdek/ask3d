@@ -1,6 +1,0 @@
-{
-  "description": "Automatic repair checks, written by Invariant and checked against its ratified TLA+ model.",
-  "name": "auto-repair",
-  "private": true,
-  "type": "module"
-}
